@@ -39,14 +39,15 @@ async def stream_command_output(process, websocket):
 
 async def handler(websocket, path):
     """Handles websocket connections and conversations."""
-    conversation_id = str(uuid.uuid4())
-    conversations[conversation_id] = []
-    print(f"New conversation started: {conversation_id}")
-
     try:
         async for message in websocket:
             data = json.loads(message)
             prompt = data.get('prompt')
+            conversation_id = data.get('conversationId')
+
+            if conversation_id not in conversations:
+                conversations[conversation_id] = []
+                print(f"New conversation started: {conversation_id}")
 
             if not prompt:
                 await websocket.send(json.dumps({'error': 'Prompt not provided'}))
@@ -61,6 +62,7 @@ async def handler(websocket, path):
                 gemini_path,
                 '-y', '-a', '-s',
                 '-p', full_prompt,
+                '-m' , 'gemini-2.5-flash'
             ]
 
             process = await asyncio.create_subprocess_exec(
@@ -85,9 +87,13 @@ async def handler(websocket, path):
 
     except websockets.exceptions.ConnectionClosed:
         print(f"Connection closed for conversation: {conversation_id}")
+    except Exception as e:
+        print(f"Error in handler: {e}")
     finally:
-        del conversations[conversation_id]
-        print(f"Conversation cleaned up: {conversation_id}")
+        # Only delete conversation if it was newly created in this handler instance
+        # or if it's truly finished (e.g., explicit end conversation message)
+        # For now, we'll keep it for history across multiple prompts in the same conversation
+        pass
 
 
 async def main():
