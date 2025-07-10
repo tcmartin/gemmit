@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Builder – Editor Mock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* =====================
+       THEME TOKENS & RESET
+    =====================*/
+    :root {
+      --brand-purple: #6e6bff;
+      --brand-pink: #ff6bcb;
+      --surface-100: #0f0f0f;
+      --surface-200: #181818;
+      --surface-300: #1f1f1f;
+      --surface-400: #262626;
+      --surface-border: #2c2c2c;
+      --text: #ffffff;
+      --text-muted: #b5b5b5;
+      --radius: 0.75rem;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background: var(--surface-100);
+      display: flex;
+      flex-direction: column;
+    }
+    button { font-family: inherit; cursor: pointer; }
+    a { color: inherit; text-decoration: none; }
+
+    /* =====================
+       TOP BAR NAVIGATION
+    =====================*/
+    .topbar {
+      height: 48px;
+      background: var(--surface-200);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1rem;
+      border-bottom: 1px solid var(--surface-border);
+    }
+    .topbar-left, .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+    }
+    .project-name {
+      font-weight: 600;
+    }
+    .btn-sm {
+      font-size: .75rem;
+      padding: .25rem .75rem;
+      border-radius: var(--radius);
+      border: 1px solid var(--surface-border);
+      background: var(--surface-300);
+    }
+    .btn-primary {
+      background: linear-gradient(90deg, var(--brand-purple), var(--brand-pink));
+      border: none;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* =====================
+       LAYOUT SPLIT
+    =====================*/
+    .workspace {
+      flex: 1;
+      display: flex;
+      min-height: 0; /* For proper flex scroll fix */
+    }
+    .panel-chat {
+      width: 360px;
+      background: var(--surface-200);
+      border-right: 1px solid var(--surface-border);
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-preview {
+      flex: 1;
+      position: relative;
+      background: var(--surface-100);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* =====================
+       CHAT AREA
+    =====================*/
+    .chat-scroll {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .chat-bubble {
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      line-height: 1.5;
+      font-size: .9rem;
+    }
+    .bubble-user {
+      background: var(--surface-300);
+      align-self: flex-start;
+      font-weight: 500;
+    }
+    .bubble-ai {
+      background: transparent;
+      color: var(--text-muted);
+      border-left: 3px solid var(--surface-border);
+      padding-left: 0.75rem;
+    }
+    /* Bullet list style to match screenshot */
+    .bubble-ai ul {
+      list-style: none;
+      margin-left: 0;
+      padding-left: 0;
+    }
+    .bubble-ai li {
+      position: relative;
+      margin: .35rem 0;
+      padding-left: 1.15rem;
+    }
+    .bubble-ai li::before {
+      content: "•";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--text-muted);
+    }
+
+    /* =====================
+       INPUT AREA
+    =====================*/
+    .chat-input {
+      border-top: 1px solid var(--surface-border);
+      padding: .75rem;
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+    }
+    .chat-input textarea {
+      resize: none;
+      background: var(--surface-300);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: .75rem 1rem;
+      color: var(--text);
+      height: 72px;
+      font-size: .9rem;
+    }
+    .chat-input .row-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chat-input .row-actions .btn-sm {
+      background: var(--surface-300);
+    }
+
+    /* =====================
+       PREVIEW PLACEHOLDER
+    =====================*/
+    .preview-box {
+      width: 90%;
+      max-width: 1024px;
+      height: 80%;
+      border: 1px dashed var(--surface-border);
+      border-radius: var(--radius);
+      background: repeating-linear-gradient(-45deg, transparent, transparent 6px, rgba(255,255,255,.03) 6px, rgba(255,255,255,.03) 12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+      font-size: 1.25rem;
+      color: var(--text-muted);
+    }
+
+  </style>
+</head>
+<body>
+  <!-- =====================
+       TOP NAVIGATION BAR
+  =====================-->
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="project-name">focus-group-ai-test</span>
+      <span>▾</span>
+      <button class="btn-sm">↺</button>
+      <button class="btn-sm">↻</button>
+      <button class="btn-sm">/</button>
+    </div>
+
+    <div class="topbar-right">
+      <button class="btn-sm">Invite</button>
+      <button class="btn-sm">⚡</button>
+      <button class="btn-sm">Upgrade</button>
+      <button class="btn-sm btn-primary">Publish</button>
+    </div>
+  </header>
+
+  <!-- =====================
+       MAIN WORKSPACE SPLIT
+  =====================-->
+  <div class="workspace">
+    <!-- === CHAT PANEL === -->
+    <aside class="panel-chat">
+      <div class="chat-scroll">
+        <div class="chat-bubble bubble-user">Make a website for AI‑focus group testing websites</div>
+
+        <div class="chat-bubble bubble-ai">
+          <p>I'll create a modern website for AI‑focused group testing. This evokes platforms like UserTesting and Maze, with a clean, professional design that builds trust with AI companies and researchers.</p><br/>
+          <p>For this first version, I'll include:</p>
+          <ul>
+            <li>Hero section with clear value proposition</li>
+            <li>Features highlighting AI‑specific testing capabilities</li>
+            <li>How‑it‑works process</li>
+            <li>Social proof section</li>
+            <li>Clean call‑to‑action areas</li>
+          </ul>
+          <p>I'll use a modern tech‑focused design with blue/purple gradients, smooth animations, and professional typography.</p>
+        </div>
+      </div>
+
+      <!-- === CHAT INPUT === -->
+      <div class="chat-input">
+        <textarea placeholder="Ask Lovable..."></textarea>
+        <div class="row-actions">
+          <button class="btn-sm">＋ Edit</button>
+          <button class="btn-sm">Chat ⮕</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- === PREVIEW PANEL === -->
+    <section class="panel-preview">
+      <div class="preview-box">🔍 Live preview of your website will appear here</div>
+    </section>
+  </div>
+</body>
+</html>

@@ -1,38 +1,137 @@
 .App {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* Ensure App takes full height */
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+/* —— Header —— */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
 }
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+.logo {
+  font-weight: 800;
+  font-size: 1.25rem;
 }
+nav a {
+  margin: 0 1rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: color .2s ease;
+}
+nav a:hover { color: var(--text); }
+.actions a {
+  margin-left: 1rem;
+  padding: .55rem 1.25rem;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  display: inline-block;
+}
+.btn-outline { border: 1px solid var(--surface-border); }
+.btn-primary { background: #fff; color: #000; }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+/* —— Main hero —— */
+main {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+h1 {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  font-weight: 800;
+  margin-bottom: 1rem;
+  line-height: 1.1;
+}
+h1 .emoji {
+  background: linear-gradient(45deg, #ff6b6b, #ff9e45);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.tagline {
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  margin-bottom: 2rem;
 }
 
-.App-link {
-  color: #61dafb;
+/* —— Chat‑box —— */
+.chat-box {
+  width: 100%;
+  max-width: 800px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-xl);
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  gap: .75rem;
+}
+.chat-box textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  resize: none;
+  color: var(--text);
+  font-size: 1rem;
+  min-height: 2.5em;
+  outline: none;
+}
+.chat-box button {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: .5rem;
+  transition: transform .15s ease;
+}
+.chat-box button:hover { transform: translateY(-3px); }
+.chat-box svg { width: 1.25rem; height: 1.25rem; stroke: currentColor; }
+
+/* —— Quick‑start pills —— */
+.presets {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  justify-content: center;
+}
+.pill {
+  padding: .5rem .85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  font-size: .875rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background .2s ease, color .2s ease;
+}
+.pill:hover {
+  background: var(--surface-border);
+  color: var(--text);
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* —— Footer —— */
+footer {
+  text-align: center;
+  padding: 1rem 0;
+  font-size: .875rem;
+  color: var(--text-muted);
+}
+
+/* —— Grain Overlay —— */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAITrMncAAAAASUVORK5CYII=") repeat;
+  opacity: .05; /* subtle */
 }
