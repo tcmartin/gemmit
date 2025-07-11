@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemmit – Chat Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --brand-purple: #6e6bff;
+      --brand-pink: #ff6bcb;
+      --surface-100: #0f0f0f;
+      --surface-200: #181818;
+      --surface-300: #1f1f1f;
+      --surface-border: #2c2c2c;
+      --text: #ffffff;
+      --text-muted: #b5b5b5;
+      --radius: 0.75rem;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; }
+    body { font-family:'Inter',sans-serif; color:var(--text); background:var(--surface-100); display:flex; flex-direction:column; }
+    button { cursor:pointer; }
+    .topbar { height:48px; background:var(--surface-200); display:flex; align-items:center; justify-content:space-between; padding:0 1rem; border-bottom:1px solid var(--surface-border); }
+    .topbar-left, .topbar-right { display:flex; align-items:center; gap:.75rem; }
+    .btn-sm { font-size:.75rem; padding:.25rem .75rem; border:1px solid var(--surface-border); background:var(--surface-300); color:var(--text); border-radius:var(--radius); }
+    .btn-primary { background:linear-gradient(90deg,var(--brand-purple),var(--brand-pink)); border:none; color:#fff; }
+    .workspace { flex:1; display:flex; min-height:0; }
+    .panel-chat { width:360px; background:var(--surface-200); border-right:1px solid var(--surface-border); display:flex; flex-direction:column; }
+    .panel-preview { flex:1; background:var(--surface-100); display:flex; flex-direction:column; }
+    .chat-scroll { flex:1; overflow-y:auto; padding:1rem; display:flex; flex-direction:column; gap:1rem; }
+    .chat-bubble { border-radius:var(--radius); padding:1rem; font-size:.9rem; line-height:1.4; white-space:pre-wrap; }
+    .bubble-user { background:var(--surface-300); align-self:flex-end; text-align:right; }
+    .bubble-ai { border-left:3px solid var(--surface-border); color:var(--text-muted); padding-left:.75rem; }
+    .chat-input { border-top:1px solid var(--surface-border); padding:.75rem; display:flex; flex-direction:column; gap:.5rem; }
+    .chat-input input, .chat-input textarea { width:100%; padding:.5rem; background:var(--surface-300); border:1px solid var(--surface-border); border-radius:var(--radius); color:var(--text); resize:none; outline:none; }
+    .chat-input .row-actions { display:flex; justify-content:space-between; }
+    .preview-header { padding:.75rem; background:var(--surface-200); border-bottom:1px solid var(--surface-border); display:flex; align-items:center; gap:.5rem; }
+    .preview-header input { width:5rem; background:var(--surface-300); border:1px solid var(--surface-border); border-radius:var(--radius); color:var(--text); padding:.25rem .5rem; }
+    .preview-frame { flex:1; border:none; width:100%; height:100%; }
+    .preview-error { color:var(--text-muted); text-align:center; margin-top:2rem; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left"><span>Gemmit Builder</span></div>
+    <div class="topbar-right"><button class="btn-sm btn-primary" id="start-frontend">Start Frontend</button></div>
+  </header>
+
+  <div class="workspace">
+    <aside class="panel-chat">
+      <div class="chat-scroll" id="chat-scroll"></div>
+      <div class="chat-input">
+        <input type="text" id="output-dir" placeholder="Output directory (optional)" />
+        <input type="number" id="preview-port" placeholder="Port" />
+        <textarea id="prompt-input" rows="2" placeholder="Ask Gemmit..."></textarea>
+        <div class="row-actions">
+          <button class="btn-sm" id="send-btn">Send</button>
+        </div>
+      </div>
+    </aside>
+
+    <section class="panel-preview">
+      <div class="preview-header">
+        <label>Preview Port:</label>
+        <input type="number" id="preview-port-display" disabled />
+        <button class="btn-sm btn-primary" id="reload-preview">Reload</button>
+      </div>
+      <iframe id="preview-frame" class="preview-frame"></iframe>
+      <div id="preview-error" class="preview-error"></div>
+    </section>
+  </div>
+
+  <script>
+    // Config from server
+    const cfg = window.APP_CONFIG || {};
+
+    // Ensure single conversationId
+    let conversationId = cfg.conversationId || 'conv-' + Date.now();
+
+    // WebSocket
+    const wsUrl = cfg.wsUrl || 'ws://localhost:8000';
+    const socket = new WebSocket(wsUrl);
+    socket.onopen = () => console.log('Socket open');
+    socket.onmessage = e => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'stream') appendBot(msg.data);
+      if (msg.type === 'result') console.log('Result:', msg);
+    };
+    socket.onclose = () => console.log('Socket closed');
+
+    // Elements
+    const chatScroll = document.getElementById('chat-scroll');
+    const promptInput = document.getElementById('prompt-input');
+    const sendBtn = document.getElementById('send-btn');
+    const outputDirInput = document.getElementById('output-dir');
+    const portInput = document.getElementById('preview-port');
+    const portDisplay = document.getElementById('preview-port-display');
+    const reloadBtn = document.getElementById('reload-preview');
+    const previewFrame = document.getElementById('preview-frame');
+    const startFrontendBtn = document.getElementById('start-frontend');
+
+    // Initialize inputs
+    portInput.value = cfg.previewPort || 5002;
+    outputDirInput.value = cfg.generationsDir || '';
+    function loadPreview() {
+      const p = portInput.value;
+      portDisplay.value = p;
+      previewFrame.src = `http://localhost:${p}`;
+    }
+    reloadBtn.addEventListener('click', loadPreview);
+    loadPreview();
+
+    // Append functions
+    function appendUser(text) {
+      const d = document.createElement('div'); d.className = 'chat-bubble bubble-user'; d.textContent = text; chatScroll.append(d); d.scrollIntoView();
+    }
+    function appendBot(text) {
+      let last = chatScroll.lastElementChild;
+      if (!last || !last.classList.contains('bubble-ai')) {
+        last = document.createElement('div'); last.className = 'chat-bubble bubble-ai'; chatScroll.append(last);
+      }
+      last.textContent += text;
+      last.scrollIntoView();
+    }
+
+    // Send handler
+    sendBtn.addEventListener('click', () => {
+      const prompt = promptInput.value.trim(); if (!prompt) return;
+      appendUser(prompt);
+      const payload = {
+        prompt,
+        conversationId,
+        previewPort: portInput.value,
+        context: `Spin up frontend on port ${portInput.value} in background.`
+      };
+      if (outputDirInput.value.trim()) payload.generationsDir = outputDirInput.value.trim();
+      socket.send(JSON.stringify(payload));
+      promptInput.value = '';
+    });
+
+    // Start Frontend command
+    startFrontendBtn.addEventListener('click', () => {
+      socket.send(JSON.stringify({ command: 'start-frontend', port: portInput.value, conversationId }));
+    });
+
+    // Enter to send
+    promptInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
+    });
+  </script>
+</body>
+</html>

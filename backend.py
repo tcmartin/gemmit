@@ -5,6 +5,7 @@ import websockets
 import uuid
 
 # In-memory storage for conversations
+default_output_dir = os.getenv('OUTPUT_DIR', os.getcwd())
 conversations = {}
 
 async def stream_pipe(pipe, stream_name, websocket, output_buffer):
@@ -17,12 +18,7 @@ async def stream_pipe(pipe, stream_name, websocket, output_buffer):
             decoded_line = line.decode()
             if stream_name == 'stdout':
                 output_buffer.append(decoded_line)
-            
-            response = {
-                'type': 'stream',
-                'stream': stream_name,
-                'data': decoded_line
-            }
+            response = {'type': 'stream', 'stream': stream_name, 'data': decoded_line}
             await websocket.send(json.dumps(response))
         except Exception as e:
             print(f"Error streaming {stream_name}: {e}")
@@ -33,9 +29,9 @@ async def stream_command_output(process, websocket):
     output_buffer = []
     await asyncio.gather(
         stream_pipe(process.stdout, 'stdout', websocket, output_buffer),
-        stream_pipe(process.stderr, 'stderr', websocket, []) # stderr is not part of the response
+        stream_pipe(process.stderr, 'stderr', websocket, [])
     )
-    return "".join(output_buffer)
+    return ''.join(output_buffer)
 
 async def handler(websocket, path):
     """Handles websocket connections and conversations."""
@@ -57,50 +53,54 @@ async def handler(websocket, path):
             history = "\n".join(conversations[conversation_id])
             full_prompt = f"{prompt}\n\n[conversation history]\n{history}"
 
-            gemini_path = 'gemini' #os.path.expanduser('~/.npm-global/bin/gemini')
+            # Determine working directory for generation outputs
+            work_dir = os.getenv('GENERATIONS_DIR', default_output_dir)
+
+            # Build your gemini or AI command here
+            gemini_path = os.getenv('GEMINI_PATH', 'gemini')
             command = [
                 gemini_path,
                 '-y', '-a', '-s',
                 '-p', full_prompt,
-                '-m' , 'gemini-2.5-flash'
+                '-m', 'gemini-2.5-flash'
             ]
 
+            # Execute the command in the specified directory
             process = await asyncio.create_subprocess_exec(
                 *command,
+                cwd=work_dir,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
 
+            # Stream output
             model_response = await stream_command_output(process, websocket)
-            
             await process.wait()
 
+            # Update conversation history only on success
             if process.returncode == 0:
-                conversations[conversation_id].append(f"User: {prompt}")
-                conversations[conversation_id].append(f"Model: {model_response}")
+                conversations[conversation_id].extend([
+                    f"User: {prompt}",
+                    f"Model: {model_response}"
+                ])
 
-            response = {
-                'type': 'result',
-                'returncode': process.returncode
-            }
-            await websocket.send(json.dumps(response))
+            # Send final result message
+            await websocket.send(json.dumps({'type': 'result', 'returncode': process.returncode}))
 
     except websockets.exceptions.ConnectionClosed:
         print(f"Connection closed for conversation: {conversation_id}")
     except Exception as e:
         print(f"Error in handler: {e}")
     finally:
-        # Only delete conversation if it was newly created in this handler instance
-        # or if it's truly finished (e.g., explicit end conversation message)
-        # For now, we'll keep it for history across multiple prompts in the same conversation
         pass
 
-
 async def main():
-    port = 8000
-    async with websockets.serve(handler, "localhost", port):
-        print(f"WebSocket server started at ws://localhost:{port}")
+    port = int(os.getenv('PORT', 8000))
+    host = os.getenv('HOST', 'localhost')
+    async with websockets.serve(handler, host, port):
+        print(f"WebSocket server started at ws://{host}:{port}")
         await asyncio.Future()  # run forever
 
 if __name__ == "__main__":
     asyncio.run(main())
+
