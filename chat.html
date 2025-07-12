@@ -102,6 +102,15 @@
     const previewFrame = document.getElementById('preview-frame');
     const startFrontendBtn = document.getElementById('start-frontend');
 
+    // --- NEW: Preload prompt from URL query parameter ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialPrompt = urlParams.get('prompt');
+    if (initialPrompt) {
+      // Decode & set the textarea value
+      promptInput.value = decodeURIComponent(initialPrompt);
+    }
+    // --- END NEW ---
+
     // Initialize inputs
     portInput.value = cfg.previewPort || 5002;
     outputDirInput.value = cfg.generationsDir || '';
@@ -115,12 +124,18 @@
 
     // Append functions
     function appendUser(text) {
-      const d = document.createElement('div'); d.className = 'chat-bubble bubble-user'; d.textContent = text; chatScroll.append(d); d.scrollIntoView();
+      const d = document.createElement('div');
+      d.className = 'chat-bubble bubble-user';
+      d.textContent = text;
+      chatScroll.append(d);
+      d.scrollIntoView();
     }
     function appendBot(text) {
       let last = chatScroll.lastElementChild;
       if (!last || !last.classList.contains('bubble-ai')) {
-        last = document.createElement('div'); last.className = 'chat-bubble bubble-ai'; chatScroll.append(last);
+        last = document.createElement('div');
+        last.className = 'chat-bubble bubble-ai';
+        chatScroll.append(last);
       }
       last.textContent += text;
       last.scrollIntoView();
@@ -128,7 +143,8 @@
 
     // Send handler
     sendBtn.addEventListener('click', () => {
-      const prompt = promptInput.value.trim(); if (!prompt) return;
+      const prompt = promptInput.value.trim();
+      if (!prompt) return;
       appendUser(prompt);
       const payload = {
         prompt,
@@ -136,20 +152,30 @@
         previewPort: portInput.value,
         context: `Spin up frontend on port ${portInput.value} in background.`
       };
-      if (outputDirInput.value.trim()) payload.generationsDir = outputDirInput.value.trim();
+      if (outputDirInput.value.trim()) {
+        payload.generationsDir = outputDirInput.value.trim();
+      }
       socket.send(JSON.stringify(payload));
       promptInput.value = '';
     });
 
     // Start Frontend command
     startFrontendBtn.addEventListener('click', () => {
-      socket.send(JSON.stringify({ command: 'start-frontend', port: portInput.value, conversationId }));
+      socket.send(JSON.stringify({
+        command: 'start-frontend',
+        port: portInput.value,
+        conversationId
+      }));
     });
 
     // Enter to send
     promptInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendBtn.click();
+      }
     });
   </script>
 </body>
 </html>
+
