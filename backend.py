@@ -55,12 +55,12 @@ async def handler(websocket, path):
 
             # Determine working directory for generation outputs
             work_dir = os.getenv('GENERATIONS_DIR', default_output_dir)
-
+            #I think -s is sandbox - we don't want that
             # Build your gemini or AI command here
             gemini_path = os.getenv('GEMINI_PATH', 'gemini')
             command = [
                 gemini_path,
-                '-y', '-a', '-s',
+                '-y', '-a',
                 '-p', full_prompt,
                 '-m', 'gemini-2.5-flash'
             ]
