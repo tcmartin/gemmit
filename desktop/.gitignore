@@ -25,7 +25,7 @@ coverage
 
 # nyc test coverage
 .nyc_output
-
+desktop/out/make/
 # node-waf configuration
 .lock-wscript
 
