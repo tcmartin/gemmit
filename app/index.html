@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Gemmit – AI Builder</title>
+  <title>Gemmit – Open Source Vibe Coding Tool</title>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -77,7 +77,6 @@
       line-height: 1.1;
       margin-bottom: .5rem;
     }
-    /* Rainbow gem in place of the heart */
     h1 .emoji {
       display: inline-flex;
       width: 1em;
@@ -131,7 +130,7 @@
     .pill {
       padding: .5rem .85rem;
       border: 1px solid var(--surface-border);
-      border-radius: var(--radius-lg);
+      border-radius: var(--radius-xl);
       font-size: .875rem;
       color: var(--text-muted);
       cursor: pointer;
@@ -146,6 +145,7 @@
       padding: 1rem 0;
       font-size: .875rem;
       color: var(--text-muted);
+      text-align: center;
     }
 
     /* Grain Overlay */
@@ -159,16 +159,16 @@
     }
   </style>
 </head>
-
 <body>
   <header>
-    <div class="logo">Gemmit</div>
+    <div class="logo">Gemmit (Open Source)</div>
     <nav>
       <a href="#">Community</a>
       <a href="#">Pricing</a>
       <a href="#">Enterprise</a>
       <a href="#">Learn</a>
       <a href="#">Launched</a>
+      <a href="https://github.com/trevormartin/gemmit" target="_blank">GitHub</a>
     </nav>
     <div class="actions">
       <a href="#" class="btn-outline">Log in</a>
@@ -197,7 +197,7 @@
       </span> 
       Gemmit
     </h1>
-    <div class="tagline">Create apps and websites by chatting with AI</div>
+    <div class="tagline">An open-source vibe coding tool created with love by the community</div>
 
     <div class="chat-box">
       <button title="Attach file">📎</button>
@@ -214,13 +214,14 @@
     </div>
   </main>
 
-  <footer>© 2025 Gemmit. All rights reserved.</footer>
+  <footer>
+    Open Source on <a href="https://github.com/trevormartin/gemmit" target="_blank">GitHub</a> | © 2025 Gemmit. All rights reserved.
+  </footer>
 
   <script>
     // navigate to chat.html with the prompt in the querystring
     const textarea = document.querySelector('.chat-box textarea');
     const sendBtn = document.querySelector('.chat-box .send');
-
     sendBtn.addEventListener('click', () => {
       const prompt = textarea.value.trim();
       if (!prompt) return;
@@ -231,14 +232,6 @@
         e.preventDefault();
         sendBtn.click();
       }
-    });
-
-    // quick‑start pills
-    document.querySelectorAll('.pill').forEach(pill => {
-      pill.addEventListener('click', () => {
-        textarea.value = pill.textContent + '.';
-        textarea.focus();
-      });
     });
   </script>
 </body>
