@@ -1,0 +1,20 @@
+appId:   com.datastreams.gemmit
+productName: gemmit
+files:
+  - dist/**                 # webpack output
+  - resources/bin/**        # backend + gemini
+extraResources:
+  - from: resources/bin
+    to: bin
+asar: true
+publish: { provider: github }
+
+mac:
+  target: [dmg]
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+win:
+  target: [nsis]
+linux:
+  target: [AppImage]
+

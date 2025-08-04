@@ -19,7 +19,7 @@ Icon?
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
-
+scripts/node_modules/
 # dotenv / secrets
 .env
 .env.*          # .env.prod, .env.local, etc.

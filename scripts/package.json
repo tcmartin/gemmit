@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "@google/gemini-cli": "^0.1.16"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/open/xdg-open"
+    ],
+    "public-packages": [
+      "@google/*"
+    ]
+  }
+}

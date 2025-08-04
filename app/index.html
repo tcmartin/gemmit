@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gemmit – Open Source Vibe Coding Tool</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+
+  <style>
+    :root {
+      --lovable-gradient:
+        radial-gradient(circle at 50% 0%, #3a6aea 0%, transparent 65%),
+        radial-gradient(circle at 50% 100%, #ff6b6b 0%, transparent 65%),
+        #000;
+      --surface: #1e1e1e;
+      --surface-border: #333;
+      --text: #fff;
+      --text-muted: #9b9b9b;
+      --radius-lg: 1rem;
+      --radius-xl: 2rem;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--lovable-gradient);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+    a { text-decoration: none; color: inherit; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+    }
+    .logo { font-weight: 800; font-size: 1.25rem; }
+    nav a {
+      margin: 0 1rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      transition: color .2s;
+    }
+    nav a:hover { color: var(--text); }
+    .actions a {
+      margin-left: 1rem;
+      padding: .55rem 1.25rem;
+      border-radius: var(--radius-lg);
+      font-weight: 600;
+      display: inline-block;
+    }
+    .btn-outline { border: 1px solid var(--surface-border); }
+    .btn-primary { background: #fff; color: #000; }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem 1rem;
+    }
+    h1 {
+      font-size: clamp(2.5rem,6vw,4rem);
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: .5rem;
+    }
+    h1 .emoji {
+      display: inline-flex;
+      width: 1em;
+      height: 1em;
+      vertical-align: text-bottom;
+    }
+    .tagline {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      margin-bottom: 2rem;
+    }
+
+    .chat-box {
+      width: 100%;
+      max-width: 800px;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-xl);
+      display: flex;
+      align-items: center;
+      padding: 1rem;
+      gap: .75rem;
+    }
+    .chat-box textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      resize: none;
+      color: var(--text);
+      font-size: 1rem;
+      min-height: 2.5em;
+      outline: none;
+    }
+    .chat-box button {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      padding: .5rem;
+      transition: transform .15s;
+    }
+    .chat-box button:hover { transform: translateY(-3px); }
+
+    .presets {
+      margin-top: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .75rem;
+      justify-content: center;
+    }
+    .pill {
+      padding: .5rem .85rem;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-xl);
+      font-size: .875rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background .2s, color .2s;
+    }
+    .pill:hover {
+      background: var(--surface-border);
+      color: var(--text);
+    }
+
+    footer {
+      padding: 1rem 0;
+      font-size: .875rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* Grain Overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAITrMncAAAAASUVORK5CYII=") repeat;
+      opacity: .05;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">Gemmit (Open Source)</div>
+    <nav>
+      <a href="#">Community</a>
+      <a href="#">Pricing</a>
+      <a href="#">Enterprise</a>
+      <a href="#">Learn</a>
+      <a href="#">Launched</a>
+      <a href="https://github.com/trevormartin/gemmit" target="_blank">GitHub</a>
+    </nav>
+    <div class="actions">
+      <a href="#" class="btn-outline">Log in</a>
+      <a href="#" class="btn-primary">Get started</a>
+    </div>
+  </header>
+
+  <main>
+    <h1>
+      Build something 
+      <span class="emoji">
+        <!-- Rainbow Gem SVG -->
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="rainbow" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ff0000"/>
+              <stop offset="20%" stop-color="#ffa500"/>
+              <stop offset="40%" stop-color="#ffff00"/>
+              <stop offset="60%" stop-color="#00ff00"/>
+              <stop offset="80%" stop-color="#0000ff"/>
+              <stop offset="100%" stop-color="#8b00ff"/>
+            </linearGradient>
+          </defs>
+          <path fill="url(#rainbow)" d="M12 2L2 8l4 12h12l4-12L12 2z"/>
+        </svg>
+      </span> 
+      Gemmit
+    </h1>
+    <div class="tagline">An open-source vibe coding tool created with love by the community</div>
+
+    <div class="chat-box">
+      <button title="Attach file">📎</button>
+      <textarea placeholder="Ask Gemmit to create a website for …"></textarea>
+      <button class="send" title="Send">➤</button>
+    </div>
+
+    <div class="presets">
+      <div class="pill">Create a financial app</div>
+      <div class="pill">Design a directory site</div>
+      <div class="pill">Make a landing page</div>
+      <div class="pill">Generate a CRM</div>
+      <div class="pill">Build a mobile app</div>
+    </div>
+  </main>
+
+  <footer>
+    Open Source on <a href="https://github.com/trevormartin/gemmit" target="_blank">GitHub</a> | © 2025 Gemmit. All rights reserved.
+  </footer>
+
+  <script>
+    // navigate to chat.html with the prompt in the querystring
+    const textarea = document.querySelector('.chat-box textarea');
+    const sendBtn = document.querySelector('.chat-box .send');
+    sendBtn.addEventListener('click', () => {
+      const prompt = textarea.value.trim();
+      if (!prompt) return;
+      window.location.href = `chat.html?prompt=${encodeURIComponent(prompt)}`;
+    });
+    textarea.addEventListener('keypress', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        sendBtn.click();
+      }
+    });
+  </script>
+</body>
+</html>
