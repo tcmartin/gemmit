@@ -23,6 +23,7 @@ pnpm-debug.log*
 # dotenv / secrets
 .env
 .env.*          # .env.prod, .env.local, etc.
+desktop/resources/bin/*
 desktop/resources/bin/*/node
 desktop/resources/bin/*/node.exe
 desktop/resources/bin/*/npm/**
