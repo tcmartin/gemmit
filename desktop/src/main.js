@@ -149,8 +149,22 @@ function createSplashScreen() {
     }
   });
 
-  // Create a simple HTML file that can load the icon properly
-  const splashPath = path.join(__dirname, 'splash.html');
+  // Use temp directory instead of trying to write to ASAR
+  const tempDir = os.tmpdir();
+  const splashPath = path.join(tempDir, 'gemmit-splash.html');
+  
+  // Get the correct icon path for both dev and production
+  let iconPath;
+  if (app.isPackaged) {
+    // In production, icon is in the resources
+    iconPath = path.join(process.resourcesPath, 'app', 'assets', 'icons', 'icon_128x128.png');
+  } else {
+    // In development
+    iconPath = path.join(__dirname, '..', 'assets', 'icons', 'icon_128x128.png');
+  }
+  
+  // Convert to file URL
+  const iconUrl = `file://${iconPath.replace(/\\/g, '/')}`;
   
   // Create the splash HTML file
   const fs = require('fs');
@@ -217,7 +231,7 @@ function createSplashScreen() {
     </head>
     <body>
       <div class="logo-container">
-        <img src="../assets/icons/icon_128x128.png" alt="Gemmit Logo" class="logo-icon" />
+        <img src="${iconUrl}" alt="Gemmit Logo" class="logo-icon" onerror="this.style.display='none'" />
         <div class="logo-text">Gemmit</div>
         <div class="tagline">AI-Powered Development Assistant</div>
       </div>
@@ -233,10 +247,17 @@ function createSplashScreen() {
     </html>
   `;
 
-  // Write the splash file temporarily
-  fs.writeFileSync(splashPath, splashHTML);
+  try {
+    // Write the splash file to temp directory
+    fs.writeFileSync(splashPath, splashHTML);
+    splashWindow.loadFile(splashPath);
+  } catch (error) {
+    console.warn('Could not create splash file, using fallback:', error);
+    // Fallback to data URL without icon
+    const fallbackHTML = splashHTML.replace(/<img[^>]*>/, '');
+    splashWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(fallbackHTML));
+  }
   
-  splashWindow.loadFile(splashPath);
   splashWindow.center();
   
   // Clean up the temporary file when splash closes
