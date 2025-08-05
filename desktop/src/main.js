@@ -71,26 +71,64 @@ function ensureGemini() {
     throw new Error('Embedded Node/npm runtime is missing; run fetch_node_runtimes.sh');
   }
 
+  const nodeDir = path.dirname(nodeBin);
   const env = {
     ...process.env,
     npm_config_prefix:          cacheDir,
     npm_config_update_notifier: 'false',
     npm_config_cache:           path.join(cacheDir, '.npm-cache'),
     // Add the node binary directory to PATH so npm can find node
-    PATH: `${path.dirname(nodeBin)}${path.delimiter}${process.env.PATH || ''}`,
+    PATH: `${nodeDir}${path.delimiter}${process.env.PATH || ''}`,
+    // Also set NODE_PATH to help with module resolution
+    NODE_PATH: path.join(nodeDir, '..', 'lib', 'node_modules'),
   };
+  
+  console.log('Node binary path:', nodeBin);
+  console.log('Node directory in PATH:', nodeDir);
+  console.log('Full PATH:', env.PATH);
 
   updateSplashStatus('Downloading AI components...');
 
   // ① install globally into our prefix - use node directly to run npm-cli.js
-  let r = spawnSync(nodeBin, [
-    npmCli, 'install', '--global', '@google/gemini-cli@latest'
-  ], { env, stdio: ['ignore','pipe','pipe'] });
+  // Create a temporary script that sets up the environment properly
+  const tempDir = os.tmpdir();
+  const wrapperScript = path.join(tempDir, 'npm-wrapper.sh');
+  const wrapperContent = `#!/bin/bash
+export PATH="${nodeDir}:$PATH"
+export NODE_PATH="${path.join(nodeDir, '..', 'lib', 'node_modules')}"
+"${nodeBin}" "${npmCli}" install --global @google/gemini-cli@latest
+`;
+
+  let r;
+  try {
+    fs.writeFileSync(wrapperScript, wrapperContent, { mode: 0o755 });
+    
+    r = spawnSync('/bin/bash', [wrapperScript], { 
+      env, 
+      stdio: ['ignore','pipe','pipe'],
+      cwd: cacheDir
+    });
+    
+    // Clean up wrapper script
+    try { fs.unlinkSync(wrapperScript); } catch (e) { /* ignore */ }
+    
+  } catch (wrapperError) {
+    console.warn('Wrapper script failed, trying direct execution:', wrapperError);
+    // Fallback to direct execution
+    r = spawnSync(nodeBin, [
+      npmCli, 'install', '--global', '@google/gemini-cli@latest'
+    ], { 
+      env, 
+      stdio: ['ignore','pipe','pipe'],
+      shell: false
+    });
+  }
   if (r.status !== 0) {
-    console.error('npm install failed');
+    console.error('npm install failed with status:', r.status);
     console.error('stdout:', r.stdout?.toString());
     console.error('stderr:', r.stderr?.toString());
-    throw new Error('npm install gemini-cli failed; see previous logs');
+    console.error('error:', r.error);
+    throw new Error(`npm install gemini-cli failed with status ${r.status}; see previous logs`);
   }
 
   updateSplashStatus('Verifying installation...');
@@ -248,6 +286,12 @@ function createSplashScreen() {
         const { ipcRenderer } = require('electron');
         ipcRenderer.on('splash-status', (event, message) => {
           document.getElementById('status').textContent = message;
+          document.getElementById('status').style.color = 'white';
+        });
+        ipcRenderer.on('splash-error', (event, error) => {
+          document.getElementById('status').textContent = 'Error: ' + error;
+          document.getElementById('status').style.color = '#ff6b6b';
+          document.querySelector('.spinner').style.display = 'none';
         });
       </script>
     </body>
@@ -282,6 +326,12 @@ function createSplashScreen() {
 function updateSplashStatus(message) {
   if (splashWindow && !splashWindow.isDestroyed()) {
     splashWindow.webContents.send('splash-status', message);
+  }
+}
+
+function showSplashError(error) {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.webContents.send('splash-error', error);
   }
 }
 
