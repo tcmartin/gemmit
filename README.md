@@ -1,4 +1,3 @@
-
 <div align="center">
   <img src="assets/logos/gemmit-logo-128.png" alt="Gemmit Logo" width="128" height="128">
   <h1>Gemmit - AI-Powered Development Assistant</h1>
@@ -6,101 +5,89 @@
 
 **Completely Free & No Vendor Lock-In**
 
-- Runs entirely off Google's **Gemini CLI**—no local model downloads or OpenAI API keys required.
-- 100% local environment: your code and projects stay on your machine in `~/Gemmit_Projects`.
-- No vendor lock-in: build, customize, and extend however you like.
-- Scoped by default: Gemmit automatically “scopes out” tasks, analyzes your project, and proposes context-aware actions.
+* Runs entirely off Google's **Gemini CLI**—no local model downloads or OpenAI API keys required.
+* 100% local environment: your code and projects stay on your machine in `~/Gemmit_Projects`.
+* No vendor lock-in: build, customize, and extend however you like.
+* Scoped by default: Gemmit automatically “scopes out” tasks, analyzes your project, and proposes context-aware actions.
 
 **Seamless Mobile Integration**
 
-- Works with [gemmit-app](https://github.com/tcmartin/gemmit-app) for on-the-go AI edits and project management from your phone.
+* Works with [gemmit-app](https://github.com/tcmartin/gemmit-app) for on-the-go AI edits and project management from your phone.
 
 ## 🚀 Key Features
 
-- **AI-Powered Chat Interface**: Real-time streaming conversations with Gemini 2.5 Flash over WebSockets.
-- **Project Scaffolding**: Automatic creation of new projects under `~/Gemmit_Projects` following the PocketFlow methodology.
-- **File Operations**: Browse, create, read, update, and delete files directly in-app.
-- **Scoped Intelligence**: AI introspects your existing codebase and suggests context-aware changes.
-- **Model Context Protocol (MCP) Support**: Configure custom M(odel)C(ontext)P(ipeline) servers via `.gemmit/settings.json`.
-- **Extensible CLI Core**: Leverage the full power of `gemini-cli` under the hood—swap in any Gemini-based model.
-- **Auto-Updates**: Built-in GitHub Releases integration for seamless version management.
-- **Cross-Platform**: Packaged for macOS (Intel & Apple Silicon), Windows, and Linux.
+* **AI-Powered Chat Interface**: Real-time streaming conversations with Gemini 2.5 Flash over WebSockets.
+* **Project Scaffolding**: Automatic creation of new projects under `~/Gemmit_Projects` following the PocketFlow methodology.
+* **File Operations**: Browse, create, read, update, and delete files directly in-app.
+* **Scoped Intelligence**: AI introspects your existing codebase and suggests context-aware changes.
+* **Model Context Protocol (MCP) Support**: Configure custom M(odel)C(ontext)P(ipeline) servers via `.gemmit/settings.json`.
+* **Extensible CLI Core**: Leverage the full power of `gemini-cli` under the hood—swap in any Gemini-based model.
+* **Auto-Updates**: Built-in GitHub Releases integration for seamless version management.
+* **Cross-Platform**: Packaged for macOS (Intel & Apple Silicon), Windows, and Linux.
 
 ## 📁 Project Architecture
 
-```
-
+```plaintext
 gemmit/
 ├── desktop/                    # Electron frontend application
-│   ├── src/                   # Main Electron process and renderer
-│   ├── assets/                # Icons and static assets
-│   ├── build/                 # Build configurations and entitlements
-│   ├── resources/             # Bundled resources (binaries, etc.)
-│   └── electron-builder.yaml  # Build configuration
-├── server/                    # Python backend service
-│   ├── backend.py            # WebSocket server and AI integration
-│   └── requirements.txt      # Python dependencies
-├── app/                      # Web UI components
-│   ├── index.html           # Main application interface
-│   └── chat.html            # Chat interface
-├── scripts/                  # Build and deployment scripts
-│   ├── build_backend.sh     # Backend compilation script
-│   └── prepare_tree.sh      # Project setup utilities
-├── ai_guidelines.md         # AI assistant behavior guidelines
-└── pocketflowguide.md      # Development methodology guide
-
-````
+│   ├── src/                    # Main Electron process and renderer
+│   ├── assets/                 # Icons and static assets
+│   ├── build/                  # Build configurations and entitlements
+│   ├── resources/              # Bundled resources (binaries, etc.)
+│   └── electron-builder.yaml   # Build configuration
+├── server/                     # Python backend service
+│   ├── backend.py             # WebSocket server and AI integration
+│   └── requirements.txt       # Python dependencies
+├── app/                        # Web UI components
+│   ├── index.html             # Main application interface
+│   └── chat.html              # Chat interface
+├── scripts/                    # Build and deployment scripts
+│   ├── build_backend.sh       # Backend compilation script
+│   └── prepare_tree.sh        # Project setup utilities
+├── ai_guidelines.md           # AI assistant behavior guidelines
+└── pocketflowguide.md         # Development methodology guide
+```
 
 ## 🛠️ Development Setup
 
 ### Prerequisites
 
-- **Node.js 18+** for Electron development
-- **Python 3.8+** for backend services
-- **Gemini CLI** installed (automatically handled by gemmit)
-- **macOS/Windows/Linux** (cross-platform support)
+* **Node.js 18+** for Electron development
+* **Python 3.8+** for backend services
+* **Gemini CLI** installed (automatically handled by gemmit)
+* **macOS/Windows/Linux** (cross-platform support)
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/tcmartin/gemmit.git
-   cd gemmit
-````
+```bash
+# Clone the repository
+git clone https://github.com/tcmartin/gemmit.git
+cd gemmit
 
-2. **Install desktop dependencies**
+# Install desktop dependencies
+cd desktop
+npm install
 
-   ```bash
-   cd desktop
-   npm install
-   ```
-3. **Install Python dependencies**
+# Install Python dependencies
+cd ../server
+pip install -r requirements.txt
 
-   ```bash
-   cd ../server
-   pip install -r requirements.txt
-   ```
-4. **Build the backend binary**
-
-   ```bash
-   cd ../scripts
-   ./build_backend.sh
-   ```
+# Build the backend binary
+cd ../scripts
+./build_backend.sh
+```
 
 ### Running in Development
 
-* **Start the Electron app**
+```bash
+# Start the Electron app
+cd desktop
+npm start
 
-  ```bash
-  cd desktop
-  npm start
-  ```
-* **Or run backend separately for debugging**
-
-  ```bash
-  cd server
-  python backend.py
-  ```
+# Or run backend separately for debugging
+cd server
+python backend.py
+```
 
 ## 📦 Building for Production
 
@@ -139,7 +126,7 @@ Built apps output to `desktop/dist/` with names like:
 
 ## 🗂️ Model Context Protocol Example
 
-Create a `.gemini/settings.json` file *inside* your `~/Gemmit_Projects/.gemini/` folder:
+Create a `.gemmit/settings.json` file *inside* your `~/Gemmit_Projects/<your-project>/.gemmit/` folder:
 
 ```json
 {
@@ -155,7 +142,7 @@ Create a `.gemini/settings.json` file *inside* your `~/Gemmit_Projects/.gemini/`
     "playwright": {
       "command": "npx",
       "args": ["@playwright/mcp@latest"]
-    }
+      }
   },
   "hideTips": false
 }
@@ -167,37 +154,33 @@ This tells Gemmit how to spin up external MCP servers for image generation, auto
 
 ### macOS
 
-1. Download the appropriate `.dmg` from [Releases](https://github.com/tcmartin/gemmit/releases)
-2. Open and drag Gemmit to Applications
-3. If you see “Gemmit is damaged”, run:
+```bash
+# Download and install Gemmit
+# 1. Download the appropriate .dmg from Releases
+# 2. Open and drag Gemmit to Applications
+# 3. If you see “Gemmit is damaged”, run:
+sudo xattr -rd com.apple.quarantine /Applications/Gemmit.app
 
-   ```bash
-   sudo xattr -rd com.apple.quarantine /Applications/Gemmit.app
-   ```
-4. Or use our helper script:
-
-   ```bash
-   curl -sSL https://raw.githubusercontent.com/tcmartin/gemmit/master/scripts/fix_macos_gatekeeper.sh | bash
-   ```
+# Or use the helper script:
+curl -sSL https://raw.githubusercontent.com/tcmartin/gemmit/master/scripts/fix_macos_gatekeeper.sh | bash
+```
 
 ### Windows
 
-1. Download the Setup `.exe` from [Releases](https://github.com/tcmartin/gemmit/releases)
-2. Run the installer (ignore SmartScreen warnings)
+```bash
+# Download and run the Setup .exe (ignore SmartScreen warnings)
+```
 
 ### Linux
 
-* **AppImage**:
+```bash
+# AppImage
+chmod +x gemmit-1.0.3.AppImage
+./gemmit-1.0.3.AppImage
 
-  ```bash
-  chmod +x gemmit-1.0.3.AppImage
-  ./gemmit-1.0.3.AppImage
-  ```
-* **DEB**:
-
-  ```bash
-  sudo dpkg -i desktop_1.0.3_amd64.deb
-  ```
+# DEB
+sudo dpkg -i desktop_1.0.3_amd64.deb
+```
 
 ## 🎯 Usage Workflow
 
@@ -253,12 +236,6 @@ MIT. See [LICENSE](LICENSE).
 
 ---
 
-**Built with ❤️ by Trevor Martin**
+*Built with ❤️ by Trevor Martin*
 
-For support, feature requests, or bug reports, please visit our [GitHub Issues](https://github.com/tcmartin/gemmit/issues) page.
-
-## ☕ Support the Project
-
-If you find Gemmit helpful, consider supporting its development:
-
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg?style=flat-square&logo=buy-me-a-coffee)](https://buymeacoffee.com/tcmartin)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg?style=flat-square\&logo=buy-me-a-coffee)](https://buymeacoffee.com/tcmartin)
