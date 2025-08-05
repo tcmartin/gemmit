@@ -11,7 +11,7 @@ jobs:
     
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [macos-13, ubuntu-latest, windows-latest]  # Use macos-13 to avoid macOS 15 migration
     
     steps:
       - name: Check out Git repository
@@ -25,19 +25,40 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
 
       - name: Install Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Python dependencies
+      - name: Install Python dependencies (Unix)
+        if: matrix.os != 'windows-latest'
         run: |
-          python -m pip install --upgrade pip
+          python -m venv server/.venv
+          source server/.venv/bin/activate
+          pip install --upgrade pip
           pip install -r server/requirements.txt pyinstaller
 
-      - name: Build backend binary
+      - name: Install Python dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          python -m venv server/.venv
+          server/.venv/Scripts/activate
+          pip install --upgrade pip
+          pip install -r server/requirements.txt pyinstaller
+
+      - name: Build backend binary (Unix)
+        if: matrix.os != 'windows-latest'
         run: |
           chmod +x scripts/build_backend.sh
           ./scripts/build_backend.sh
+
+      - name: Build backend binary (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          server/.venv/Scripts/activate
+          cd server
+          pyinstaller backend.py --onefile --name backend --add-data "../app;app"
+          mkdir -p ../desktop/resources/bin/win
+          move dist/backend.exe ../desktop/resources/bin/win/
 
       - name: Install desktop dependencies
         run: |
@@ -45,7 +66,7 @@ jobs:
           npm ci
 
       - name: Build Electron app (macOS)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-13'
         run: |
           cd desktop
           npm run build:mac
@@ -69,7 +90,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.os }}
           path: |
@@ -88,13 +109,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
-            release-*/*
+            artifacts/**/*
           draft: true
           generate_release_notes: true
         env:
