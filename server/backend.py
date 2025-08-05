@@ -20,6 +20,34 @@ WORK_DIR.mkdir(parents=True, exist_ok=True)
 # Output directory for any generated assets
 OUTPUT_DIR = pathlib.Path(os.getenv('OUTPUT_DIR', str(DEFAULT_PROJECTS)))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# ─── Provision AI guidance docs into WORK_DIR/.gemmit ────────────
+import sys, shutil
+
+config_dir = WORK_DIR / ".gemmit"
+config_dir.mkdir(parents=True, exist_ok=True)
+
+for doc in ("ai_guidelines.md", "pocketflowguide.md"):
+    src = BASE_DIR / doc
+    dest = config_dir / doc
+    
+    # Copy if destination doesn't exist or source is newer
+    should_copy = False
+    if not dest.exists():
+        should_copy = True
+    elif src.exists() and src.stat().st_mtime > dest.stat().st_mtime:
+        should_copy = True
+    
+    if should_copy and src.exists():
+        try:
+            shutil.copy2(src, dest)  # copy2 preserves metadata
+            print(f"Copied {doc} to .gemmit directory")
+        except Exception as e:
+            print(f"Warning: could not copy {src} → {dest}: {e}", file=sys.stderr)
+    elif not src.exists():
+        print(f"Warning: source file {src} not found", file=sys.stderr)
+
+
 GEMINI_BIN = os.getenv('GEMINI_PATH', 'gemini')
 PORT = int(os.getenv('PORT', 8000))
 HOST = os.getenv('HOST', '127.0.0.1')
