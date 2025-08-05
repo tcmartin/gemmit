@@ -217,3 +217,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Built with ❤️ by Trevor Martin**
 
 For support, feature requests, or bug reports, please visit our [GitHub Issues](https://github.com/tcmartin/gemmit/issues) page.
+
+## ☕ Support the Project
+
+If you find Gemmit helpful, consider supporting its development:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg?style=flat-square&logo=buy-me-a-coffee)](https://buymeacoffee.com/tcmartin)
