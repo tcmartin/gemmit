@@ -1,4 +1,7 @@
-# Gemmit - AI-Powered Development Assistant
+<div align="center">
+  <img src="assets/logos/gemmit-logo-128.png" alt="Gemmit Logo" width="128" height="128">
+  <h1>Gemmit - AI-Powered Development Assistant</h1>
+</div>
 
 **Gemmit** is a cross-platform desktop application that combines the power of Google's Gemini AI with a streamlined development workflow. Built with Electron and Python, Gemmit provides an integrated environment for AI-assisted coding, project management, and rapid prototyping.
 

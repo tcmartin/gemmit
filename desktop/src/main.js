@@ -149,6 +149,10 @@ function createSplashScreen() {
     }
   });
 
+  // Get the icon path
+  const iconPath = path.join(__dirname, '..', 'assets', 'icons', 'icon_128x128.png');
+  const iconUrl = `file://${iconPath}`;
+
   const splashHTML = `
     <!DOCTYPE html>
     <html>
@@ -167,10 +171,28 @@ function createSplashScreen() {
           height: 100vh;
           border-radius: 10px;
         }
-        .logo {
+        .logo-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          margin-bottom: 30px;
+        }
+        .logo-icon {
+          width: 64px;
+          height: 64px;
+          margin-bottom: 15px;
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        .logo-text {
           font-size: 32px;
           font-weight: bold;
-          margin-bottom: 20px;
+          margin: 0;
+        }
+        .tagline {
+          font-size: 14px;
+          opacity: 0.8;
+          margin-top: 5px;
         }
         .status {
           font-size: 14px;
@@ -193,7 +215,11 @@ function createSplashScreen() {
       </style>
     </head>
     <body>
-      <div class="logo">🚀 Gemmit</div>
+      <div class="logo-container">
+        <img src="${iconUrl}" alt="Gemmit Logo" class="logo-icon" />
+        <div class="logo-text">Gemmit</div>
+        <div class="tagline">AI-Powered Development Assistant</div>
+      </div>
       <div class="status" id="status">Initializing...</div>
       <div class="spinner"></div>
       <script>
