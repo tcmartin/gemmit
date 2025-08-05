@@ -39,6 +39,8 @@ function waitPort (port, host = '127.0.0.1') {
 /* ─── ONE-TIME per launch – ensure Gemini CLI via embedded Node/npm ──── */
 function ensureGemini () {
   const cacheDir = path.join(os.homedir(), '.gemmit');
+  const prefixBin = path.join(cacheDir, 'bin');
+  if (!fs.existsSync(prefixBin)) fs.mkdirSync(prefixBin, { recursive: true });
   if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
   const libModules = path.join(cacheDir, 'lib', 'node_modules');
   if (!fs.existsSync(libModules)) fs.mkdirSync(libModules, { recursive: true });
@@ -110,7 +112,11 @@ function createWindow () {
 app.whenReady().then(async () => {
   await startBackend();
   createWindow();
-  autoUpdater.checkForUpdatesAndNotify();
+  try {
+    await autoUpdater.checkForUpdatesAndNotify();
+  } catch (e) {
+    console.warn('Auto-update check failed (probably no GitHub releases yet):', e.message);
+  }
 });
 
 app.on('before-quit', () => {
