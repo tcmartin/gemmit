@@ -17,11 +17,18 @@ mac:
   target:
     - target: dmg
       arch: [x64, arm64]
-  hardenedRuntime: true
+  hardenedRuntime: false
+  gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   icon: "assets/icons/icon.icns"
   category: public.app-category.developer-tools
+  # Disable code signing for now (unsigned builds)
+  identity: null
+  # Add extended attributes to help with Gatekeeper
+  extendInfo:
+    LSUIElement: false
+    NSHighResolutionCapable: true
 
 win:
   target:

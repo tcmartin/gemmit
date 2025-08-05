@@ -122,6 +122,33 @@ The app includes proper entitlements for:
 - Network client capabilities
 - Home directory read/write permissions for project management
 
+## 📥 Installation for Users
+
+### macOS
+1. Download the appropriate .dmg file for your Mac architecture from [Releases](https://github.com/tcmartin/gemmit/releases)
+2. Open the .dmg and drag Gemmit to Applications
+3. **Important**: Due to unsigned builds, you may see "Gemmit is damaged" error
+4. **Fix**: Run this command in Terminal:
+   ```bash
+   sudo xattr -rd com.apple.quarantine /Applications/gemmit.app
+   ```
+5. Or use our helper script:
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/tcmartin/gemmit/master/scripts/fix_macos_gatekeeper.sh | bash
+   ```
+
+### Windows
+1. Download the Setup .exe file from [Releases](https://github.com/tcmartin/gemmit/releases)
+2. Run the installer (Windows may show a SmartScreen warning - click "More info" then "Run anyway")
+3. Launch from Start Menu or Desktop shortcut
+
+### Linux
+1. Download the .AppImage file for universal compatibility, or .deb for Debian/Ubuntu from [Releases](https://github.com/tcmartin/gemmit/releases)
+2. For AppImage: `chmod +x gemmit-1.0.0.AppImage && ./gemmit-1.0.0.AppImage`
+3. For DEB: `sudo dpkg -i desktop_1.0.0_amd64.deb`
+
+The app will automatically set up your workspace in ~/Gemmit_Projects on first launch.
+
 ## 🎯 Usage Workflow
 
 ### 1. Project Initialization

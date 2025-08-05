@@ -7,7 +7,7 @@
    • Wires in electron-updater
 */
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const { spawn, spawnSync }   = require('child_process');
 const path                   = require('path');
 const net                    = require('net');
@@ -17,6 +17,7 @@ const os                     = require('os');
 const { autoUpdater }        = require('electron-updater');
 
 let backendProc;
+let splashWindow;
 
 /* ─── helpers ──────────────────────────────────────────────────────── */
 function binDir () {
@@ -38,6 +39,8 @@ function waitPort (port, host = '127.0.0.1') {
 
 /* ─── ONE-TIME per launch – ensure Gemini CLI via embedded Node/npm ──── */
 function ensureGemini() {
+  updateSplashStatus('Setting up AI backend...');
+  
   const cacheDir = path.join(os.homedir(), '.gemmit');
   // ensure prefix dirs exist
   if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
@@ -45,6 +48,18 @@ function ensureGemini() {
   if (!fs.existsSync(prefixBin)) fs.mkdirSync(prefixBin, { recursive: true });
   const libModules = path.join(cacheDir, 'lib', 'node_modules');
   if (!fs.existsSync(libModules)) fs.mkdirSync(libModules, { recursive: true });
+
+  // Check if Gemini CLI is already installed
+  const geminiPath = path.join(prefixBin, process.platform === 'win32'
+    ? 'gemini.cmd' : 'gemini'
+  );
+  
+  if (fs.existsSync(geminiPath)) {
+    updateSplashStatus('AI backend ready!');
+    return geminiPath;
+  }
+
+  updateSplashStatus('Installing Gemini CLI...');
 
   // locate embedded node/npm
   const nodeBin = path.join(
@@ -63,18 +78,19 @@ function ensureGemini() {
     npm_config_cache:           path.join(cacheDir, '.npm-cache'),
   };
 
+  updateSplashStatus('Downloading AI components...');
+
   // ① install globally into our prefix
   let r = spawnSync(nodeBin, [
     npmCli, 'install', '--global', '@google/gemini-cli@latest'
-  ], { env, stdio: ['ignore','inherit','inherit'] });
+  ], { env, stdio: ['ignore','pipe','pipe'] });
   if (r.status !== 0) {
     throw new Error('npm install gemini-cli failed; see previous logs');
   }
 
+  updateSplashStatus('Verifying installation...');
+
   // ② sanity-check with --version
-  const geminiPath = path.join(prefixBin, process.platform === 'win32'
-    ? 'gemini.cmd' : 'gemini'
-  );
   if (!fs.existsSync(geminiPath)) {
     throw new Error('Gemini CLI not found after install at ' + geminiPath);
   }
@@ -86,17 +102,21 @@ function ensureGemini() {
     throw new Error('gemini --version failed; see logs above');
   }
 
+  updateSplashStatus('AI backend ready!');
   return geminiPath;
 }
 /* ─── start backend (Python) ───────────────────────────────────────── */
 async function startBackend () {
   if (app.isPackaged) {
+    updateSplashStatus('Preparing AI backend...');
     process.env.GEMINI_PATH = ensureGemini();
     const exeName = process.platform === 'win32' ? 'backend.exe' : 'backend';
     const backendBin = path.join(process.resourcesPath, 'bin', binDir(), exeName);
+    updateSplashStatus('Starting backend server...');
     backendProc = spawn(backendBin, [], { stdio: ['ignore','inherit','inherit'] });
   } else {
     console.log('⚙️  Dev mode: using local Python backend + global gemini-cli');
+    updateSplashStatus('Starting development server...');
     process.env.GEMINI_PATH = 'gemini';
     // In dev, server folder is one level up from desktop
     const script = path.join(process.cwd(), '..', 'server', 'backend.py');
@@ -110,23 +130,136 @@ async function startBackend () {
     app.quit();
   });
 
+  updateSplashStatus('Waiting for server to start...');
   await waitPort(8001);
+  updateSplashStatus('Loading application...');
 }
 
-/* ─── create window ───────────────────────────────────────────────── */
+/* ─── create splash screen ──────────────────────────────────────────── */
+function createSplashScreen() {
+  splashWindow = new BrowserWindow({
+    width: 400,
+    height: 300,
+    frame: false,
+    alwaysOnTop: true,
+    transparent: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  const splashHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body {
+          margin: 0;
+          padding: 20px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          border-radius: 10px;
+        }
+        .logo {
+          font-size: 32px;
+          font-weight: bold;
+          margin-bottom: 20px;
+        }
+        .status {
+          font-size: 14px;
+          margin-bottom: 10px;
+          text-align: center;
+        }
+        .spinner {
+          border: 2px solid rgba(255,255,255,0.3);
+          border-radius: 50%;
+          border-top: 2px solid white;
+          width: 20px;
+          height: 20px;
+          animation: spin 1s linear infinite;
+          margin: 10px;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="logo">🚀 Gemmit</div>
+      <div class="status" id="status">Initializing...</div>
+      <div class="spinner"></div>
+      <script>
+        const { ipcRenderer } = require('electron');
+        ipcRenderer.on('splash-status', (event, message) => {
+          document.getElementById('status').textContent = message;
+        });
+      </script>
+    </body>
+    </html>
+  `;
+
+  splashWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(splashHTML));
+  splashWindow.center();
+}
+
+function updateSplashStatus(message) {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.webContents.send('splash-status', message);
+  }
+}
+
+function closeSplashScreen() {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close();
+    splashWindow = null;
+  }
+}
+
+/* ─── create main window ───────────────────────────────────────────── */
 function createWindow () {
-  const win = new BrowserWindow({ width: 1280, height: 800 });
+  const win = new BrowserWindow({ 
+    width: 1280, 
+    height: 800,
+    show: false // Don't show until ready
+  });
+  
   win.loadURL('http://127.0.0.1:8001/index.html');
+  
+  win.once('ready-to-show', () => {
+    closeSplashScreen();
+    win.show();
+  });
+  
+  return win;
 }
 
 /* ─── app lifecycle ───────────────────────────────────────────────── */
 app.whenReady().then(async () => {
-  await startBackend();
-  createWindow();
+  createSplashScreen();
+  
   try {
-    await autoUpdater.checkForUpdatesAndNotify();
-  } catch (e) {
-    console.warn('Auto-update check failed (probably no GitHub releases yet):', e.message);
+    await startBackend();
+    createWindow();
+    
+    try {
+      await autoUpdater.checkForUpdatesAndNotify();
+    } catch (e) {
+      console.warn('Auto-update check failed (probably no GitHub releases yet):', e.message);
+    }
+  } catch (error) {
+    updateSplashStatus('Error: ' + error.message);
+    console.error('Startup error:', error);
+    setTimeout(() => {
+      app.quit();
+    }, 3000);
   }
 });
 
