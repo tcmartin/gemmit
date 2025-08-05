@@ -1,9 +1,9 @@
 {
   "repository": "github.com/tcmartin/gemmit",
   "name": "desktop",
-  "productName": "desktop",
+  "productName": "Gemmit",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "AI-Powered Development Assistant with Gemini integration",
   "main": "src/main.js",
   "scripts": {
     "prep": "electron-forge package --platform=darwin --arch=arm64 --outDir .forge-pack",
@@ -11,7 +11,13 @@
     "package": "electron-forge package",
     "publish": "electron-forge publish",
     "lint": "echo \"No linting configured\"",
-    "builder": "electron-builder --mac --arm64 --publish never"
+    "build": "electron-builder --publish never",
+    "build:mac": "electron-builder --mac --publish never",
+    "build:win": "electron-builder --win --publish never",
+    "build:linux": "electron-builder --linux --publish never",
+    "build:all": "electron-builder --mac --win --linux --publish never",
+    "release": "electron-builder --publish always",
+    "release:draft": "electron-builder --publish onTagOrDraft"
   },
   "keywords": [],
   "author": "trevormartin",

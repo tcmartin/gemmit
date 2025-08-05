@@ -14,15 +14,28 @@ publish:
   repo: gemmit
 
 mac:
-  target: [dmg]
+  target:
+    - target: dmg
+      arch: [x64, arm64]
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   icon: "assets/icons/icon.icns"
+  category: public.app-category.developer-tools
+
 win:
-  target: [nsis]
-  icon: "assets/icon/icon.ico"
+  target:
+    - target: nsis
+      arch: [x64, ia32]
+  icon: "assets/icons/icon.ico"
+  publisherName: "Trevor Martin"
+
 linux:
-  target: [AppImage]
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
   icon: "assets/icons/icon.png"
+  category: Development
 
