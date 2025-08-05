@@ -76,15 +76,20 @@ function ensureGemini() {
     npm_config_prefix:          cacheDir,
     npm_config_update_notifier: 'false',
     npm_config_cache:           path.join(cacheDir, '.npm-cache'),
+    // Add the node binary directory to PATH so npm can find node
+    PATH: `${path.dirname(nodeBin)}${path.delimiter}${process.env.PATH || ''}`,
   };
 
   updateSplashStatus('Downloading AI components...');
 
-  // ① install globally into our prefix
+  // ① install globally into our prefix - use node directly to run npm-cli.js
   let r = spawnSync(nodeBin, [
     npmCli, 'install', '--global', '@google/gemini-cli@latest'
   ], { env, stdio: ['ignore','pipe','pipe'] });
   if (r.status !== 0) {
+    console.error('npm install failed');
+    console.error('stdout:', r.stdout?.toString());
+    console.error('stderr:', r.stderr?.toString());
     throw new Error('npm install gemini-cli failed; see previous logs');
   }
 
