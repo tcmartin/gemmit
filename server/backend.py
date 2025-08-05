@@ -12,10 +12,17 @@ else:
     BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 
 # Directories and config
-WORK_DIR = pathlib.Path(os.getenv('GENERATIONS_DIR', os.getcwd()))
-OUTPUT_DIR = pathlib.Path(os.getenv('OUTPUT_DIR', os.getcwd()))
+home = pathlib.Path.home()
+DEFAULT_PROJECTS = home / "Gemmit_Projects"
+# Generation directory (where files are listed/read/written)
+WORK_DIR = pathlib.Path(os.getenv('GENERATIONS_DIR', str(DEFAULT_PROJECTS)))
+WORK_DIR.mkdir(parents=True, exist_ok=True)
+# Output directory for any generated assets
+OUTPUT_DIR = pathlib.Path(os.getenv('OUTPUT_DIR', str(DEFAULT_PROJECTS)))
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 GEMINI_BIN = os.getenv('GEMINI_PATH', 'gemini')
 PORT = int(os.getenv('PORT', 8000))
+HOST = os.getenv('HOST', '127.0.0.1')
 HOST = os.getenv('HOST', '127.0.0.1')
 
 # In-memory conversation storage
@@ -52,7 +59,7 @@ async def stream_pipe(pipe, name, ws, buffer):
 
 async def run_gemini(prompt: str, work_dir: pathlib.Path, ws):
     # Use chat endpoint, drop code-assist '-a'
-    cmd = [GEMINI_BIN, '-y', '-p', '-a', prompt, '-m', 'gemini-2.5-flash']
+    cmd = [GEMINI_BIN, '-y', '-a', '-p', prompt, '-m', 'gemini-2.5-flash']
     proc = await asyncio.create_subprocess_exec(
         *cmd, cwd=str(work_dir),
         stdout=asyncio.subprocess.PIPE,
@@ -118,3 +125,4 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
