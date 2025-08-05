@@ -1,7 +1,7 @@
 /* desktop/src/main.js  (CommonJS)
    ─────────────────────────────────────────────────────────────
    • On app start -> ensureGemini() installs/upgrades the CLI (with logging)
-   • Spawns the Python backend (PyInstaller one-file)
+   • Spawns the Python backend (one-file in prod, script in dev)
    • Waits for the HTTP health check (port 8001)
    • Opens a BrowserWindow
    • Wires in electron-updater
@@ -36,42 +36,32 @@ function waitPort (port, host = '127.0.0.1') {
   });
 }
 
-/* ─── ONE-TIME per launch – make sure Gemini CLI is present ─────────── */
+/* ─── ONE-TIME per launch – ensure Gemini CLI via embedded Node/npm ──── */
 function ensureGemini () {
-  // Use ~/.gemmit as the npm install prefix
   const cacheDir = path.join(os.homedir(), '.gemmit');
-  // Ensure the prefix directory exists
   if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
-
-  // Ensure lib/node_modules exists for npm installs
   const libModules = path.join(cacheDir, 'lib', 'node_modules');
   if (!fs.existsSync(libModules)) fs.mkdirSync(libModules, { recursive: true });
 
-  const nodeBin = path.join(
-    process.resourcesPath, 'bin', binDir(),
+  const nodeBin = path.join(process.resourcesPath, 'bin', binDir(),
     process.platform === 'win32' ? 'node.exe' : 'node'
   );
-  const npmCli = path.join(
-    path.dirname(nodeBin), 'npm', 'bin', 'npm-cli.js'
-  );
+  const npmCli = path.join(path.dirname(nodeBin), 'npm', 'bin', 'npm-cli.js');
 
   if (!fs.existsSync(nodeBin) || !fs.existsSync(npmCli)) {
-    throw new Error(
-      'Embedded Node/npm runtime is missing; run fetch_node_runtimes.sh'
-    );
+    throw new Error('Embedded Node/npm runtime is missing; run fetch_node_runtimes.sh');
   }
 
   const env = {
     ...process.env,
-    npm_config_prefix:          cacheDir,                  // where npm puts bin/ & lib/
+    npm_config_prefix:          cacheDir,
     npm_config_update_notifier: 'false',
     npm_config_cache:           path.join(cacheDir, '.npm-cache'),
   };
 
-  // Install or upgrade the CLI, then immediately check --version
   const r = spawnSync(nodeBin, [
     npmCli, 'exec', '--yes', '@google/gemini-cli@latest', '--', '--version'
-  ], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  ], { env, stdio: ['ignore','pipe','pipe'] });
 
   if (r.status !== 0) {
     console.error('❌ npm exec gemini-cli failed');
@@ -80,29 +70,28 @@ function ensureGemini () {
     throw new Error('npm exec gemini-cli failed; see logs above');
   }
 
-  // Return the path to the installed gemini executable
-  return path.join(
-    cacheDir,
+  return path.join(cacheDir,
     process.platform === 'win32' ? 'bin\\gemini.cmd' : 'bin/gemini'
   );
 }
 
 /* ─── start backend (Python) ───────────────────────────────────────── */
 async function startBackend () {
-  // In packaged mode install+use embedded CLI; in dev you can point to global gemini
   if (app.isPackaged) {
     process.env.GEMINI_PATH = ensureGemini();
+    const exeName = process.platform === 'win32' ? 'backend.exe' : 'backend';
+    const backendBin = path.join(process.resourcesPath, 'bin', binDir(), exeName);
+    backendProc = spawn(backendBin, [], { stdio: 'ignore' });
   } else {
-    console.log('⚙️  Dev mode: using global gemini-cli');
+    console.log('⚙️  Dev mode: using local Python backend + global gemini-cli');
     process.env.GEMINI_PATH = 'gemini';
+    // In dev, server folder is one level up from desktop
+    const script = path.join(process.cwd(), '..', 'server', 'backend.py');
+    backendProc = spawn(process.env.PYTHON || 'python3', [script], {
+      stdio: ['ignore','inherit','inherit']
+    });
   }
 
-  const exeName = process.platform === 'win32' ? 'backend.exe' : 'backend';
-  const backendBin = path.join(
-    process.resourcesPath, 'bin', binDir(), exeName
-  );
-
-  backendProc = spawn(backendBin, [], { stdio: 'ignore' });
   backendProc.once('exit', code => {
     console.error(`backend exited with code ${code}`);
     app.quit();

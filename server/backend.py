@@ -54,7 +54,7 @@ async def run_gemini(prompt, work_dir, ws):
     await proc.wait()
     return proc.returncode, ''.join(buf)
 
-async def ws_handler(ws, _):
+async def ws_handler(ws, path=None):
     async for msg in ws:
         data = json.loads(msg)
         # -------- file ops ----------
