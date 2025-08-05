@@ -106,12 +106,11 @@ for entry in "${PLATFORMS[@]}"; do
   mkdir -p "$DEST_DIR/npm"
   # npm (copy entire folder)
   mkdir -p "$DEST_DIR/npm"
-  if [[ -d "$SRC_DIR/lib/node_modules/npm" ]]; then         # mac / linux
-    cp -R "$SRC_DIR/lib/node_modules/npm" "$DEST_DIR/npm/"
-  else                                                      # windows layout
-    cp -R "$SRC_DIR/node_modules/npm"      "$DEST_DIR/npm/"
+  if [[ -d "$SRC_DIR/lib/node_modules/npm" ]]; then
+    cp -R "$SRC_DIR/lib/node_modules/npm" "$DEST_DIR/"
+  else
+    cp -R "$SRC_DIR/node_modules/npm"      "$DEST_DIR/"
   fi
-
   echo "✓ runtime staged in $DEST_DIR"
 done
 
