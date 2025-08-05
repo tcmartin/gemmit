@@ -149,10 +149,11 @@ function createSplashScreen() {
     }
   });
 
-  // Get the icon path
-  const iconPath = path.join(__dirname, '..', 'assets', 'icons', 'icon_128x128.png');
-  const iconUrl = `file://${iconPath}`;
-
+  // Create a simple HTML file that can load the icon properly
+  const splashPath = path.join(__dirname, 'splash.html');
+  
+  // Create the splash HTML file
+  const fs = require('fs');
   const splashHTML = `
     <!DOCTYPE html>
     <html>
@@ -216,7 +217,7 @@ function createSplashScreen() {
     </head>
     <body>
       <div class="logo-container">
-        <img src="${iconUrl}" alt="Gemmit Logo" class="logo-icon" />
+        <img src="../assets/icons/icon_128x128.png" alt="Gemmit Logo" class="logo-icon" />
         <div class="logo-text">Gemmit</div>
         <div class="tagline">AI-Powered Development Assistant</div>
       </div>
@@ -232,8 +233,22 @@ function createSplashScreen() {
     </html>
   `;
 
-  splashWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(splashHTML));
+  // Write the splash file temporarily
+  fs.writeFileSync(splashPath, splashHTML);
+  
+  splashWindow.loadFile(splashPath);
   splashWindow.center();
+  
+  // Clean up the temporary file when splash closes
+  splashWindow.on('closed', () => {
+    try {
+      if (fs.existsSync(splashPath)) {
+        fs.unlinkSync(splashPath);
+      }
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+  });
 }
 
 function updateSplashStatus(message) {
