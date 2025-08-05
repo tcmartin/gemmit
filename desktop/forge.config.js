@@ -12,6 +12,13 @@ module.exports = {
       config: {},
     },
     {
+      name: '@electron-forge/maker-dmg',
+      config: {
+        format: 'ULFO',          
+        overwrite: true
+      }
+    },
+    {
       name: '@electron-forge/maker-zip',
       platforms: ['darwin'],
     },
