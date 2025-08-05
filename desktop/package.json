@@ -40,7 +40,7 @@
     "tree-kill": "^1.2.2"
   },
   "packagerConfig": {
-    "icon": "assets/icons/icon" // points to icon.icns/.ico/.png base name
+    "icon": "assets/icons/icon"
   }
 
 }
