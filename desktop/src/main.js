@@ -81,7 +81,7 @@ async function startBackend () {
     process.env.GEMINI_PATH = ensureGemini();
     const exeName = process.platform === 'win32' ? 'backend.exe' : 'backend';
     const backendBin = path.join(process.resourcesPath, 'bin', binDir(), exeName);
-    backendProc = spawn(backendBin, [], { stdio: 'ignore' });
+    backendProc = spawn(backendBin, [], { stdio: ['ignore','inherit','inherit'] });
   } else {
     console.log('⚙️  Dev mode: using local Python backend + global gemini-cli');
     process.env.GEMINI_PATH = 'gemini';
