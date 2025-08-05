@@ -7,26 +7,34 @@
    • Wires in electron-updater
 */
 
-const { app, BrowserWindow, ipcMain } = require('electron');
-const { spawn, spawnSync }   = require('child_process');
-const path                   = require('path');
-const net                    = require('net');
-const kill                   = require('tree-kill');
-const fs                     = require('fs');
-const os                     = require('os');
-const { autoUpdater }        = require('electron-updater');
+const { app, BrowserWindow } = require('electron');
+const { spawn, spawnSync } = require('child_process');
+const path = require('path');
+const net = require('net');
+const kill = require('tree-kill');
+const fs = require('fs');
+const os = require('os');
+const { autoUpdater } = require('electron-updater');
 
 let backendProc;
 let splashWindow;
 
 /* ─── helpers ──────────────────────────────────────────────────────── */
-function binDir () {
+function binDir() {
   if (process.platform === 'win32') return 'win';
   if (process.platform === 'darwin') return process.arch === 'arm64' ? 'mac-arm64' : 'mac-x64';
   return 'linux';
 }
+// ─── make sure our embedded node lives on PATH so “#!/usr/bin/env node” works ────────
+if (app.isPackaged) {
+    // path to your bundled node binary
+    const nodeDirPath = path.join(process.resourcesPath, 'bin', binDir());
+    // prepend it so child processes can find `node`
+    process.env.PATH = `${nodeDirPath}${path.delimiter}${process.env.PATH}`;
+  }
+  
 
-function waitPort (port, host = '127.0.0.1') {
+function waitPort(port, host = '127.0.0.1') {
   return new Promise(resolve => {
     const timer = setInterval(() => {
       const sock = net.createConnection(port, host, () => {
@@ -40,7 +48,7 @@ function waitPort (port, host = '127.0.0.1') {
 /* ─── ONE-TIME per launch – ensure Gemini CLI via embedded Node/npm ──── */
 function ensureGemini() {
   updateSplashStatus('Setting up AI backend...');
-  
+
   const cacheDir = path.join(os.homedir(), '.gemmit');
   // ensure prefix dirs exist
   if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
@@ -53,7 +61,7 @@ function ensureGemini() {
   const geminiPath = path.join(prefixBin, process.platform === 'win32'
     ? 'gemini.cmd' : 'gemini'
   );
-  
+
   if (fs.existsSync(geminiPath)) {
     updateSplashStatus('AI backend ready!');
     return geminiPath;
@@ -72,15 +80,15 @@ function ensureGemini() {
   }
 
   const nodeDir = path.dirname(nodeBin);
-  
+
   // Ensure we have a proper PATH even when launched from Finder
   const basePath = process.env.PATH || '/usr/local/bin:/usr/bin:/bin';
-  
+
   const env = {
     ...process.env,
-    npm_config_prefix:          cacheDir,
+    npm_config_prefix: cacheDir,
     npm_config_update_notifier: 'false',
-    npm_config_cache:           path.join(cacheDir, '.npm-cache'),
+    npm_config_cache: path.join(cacheDir, '.npm-cache'),
     // Add the node binary directory to PATH so npm can find node
     PATH: `${nodeDir}${path.delimiter}${basePath}`,
     // Also set NODE_PATH to help with module resolution
@@ -103,56 +111,25 @@ npm-cli.js exists: ${fs.existsSync(npmCli)}
 Full PATH: ${env.PATH}
 process.resourcesPath: ${process.resourcesPath}
 `;
-  
+
   try {
     fs.writeFileSync(path.join(os.tmpdir(), 'gemmit-debug.log'), debugLog);
   } catch (e) {
     // Ignore debug log errors
   }
-  
 
 
-  updateSplashStatus('Downloading AI components...');
 
-  // ① install globally into our prefix - use node directly to run npm-cli.js
-  // Create a temporary script that sets up the environment properly
-  const tempDir = os.tmpdir();
-  const wrapperScript = path.join(tempDir, 'npm-wrapper.sh');
-  const wrapperContent = `#!/bin/bash
-# Set up environment for npm execution
-export PATH="${nodeDir}:/usr/local/bin:/usr/bin:/bin"
-export NODE_PATH="${path.join(nodeDir, '..', 'lib', 'node_modules')}"
-export HOME="${os.homedir()}"
-export TMPDIR="${os.tmpdir()}"
+  updateSplashStatus('Installing Gemini CLI with bundled npm...');
 
-# Execute npm with embedded node
-"${nodeBin}" "${npmCli}" install --global @google/gemini-cli@latest
-`;
-
-  let r;
-  try {
-    fs.writeFileSync(wrapperScript, wrapperContent, { mode: 0o755 });
-    
-    r = spawnSync('/bin/bash', [wrapperScript], { 
-      env, 
-      stdio: ['ignore','pipe','pipe'],
-      cwd: cacheDir
-    });
-    
-    // Clean up wrapper script
-    try { fs.unlinkSync(wrapperScript); } catch (e) { /* ignore */ }
-    
-  } catch (wrapperError) {
-    console.warn('Wrapper script failed, trying direct execution:', wrapperError);
-    // Fallback to direct execution
-    r = spawnSync(nodeBin, [
-      npmCli, 'install', '--global', '@google/gemini-cli@latest'
-    ], { 
-      env, 
-      stdio: ['ignore','pipe','pipe'],
-      shell: false
-    });
-  }
+  // Use our embedded Node.js to run npm directly
+  // This ensures we're using our npm, not the system's npm
+  const r = spawnSync(nodeBin, [
+    npmCli, 'install', '--global', '@google/gemini-cli@latest'
+  ], {
+    env,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
   if (r.status !== 0) {
     console.error('npm install failed with status:', r.status);
     console.error('stdout:', r.stdout?.toString());
@@ -167,7 +144,7 @@ export TMPDIR="${os.tmpdir()}"
   if (!fs.existsSync(geminiPath)) {
     throw new Error('Gemini CLI not found after install at ' + geminiPath);
   }
-  r = spawnSync(geminiPath, ['--version'], { stdio: ['ignore','pipe','pipe'] });
+  r = spawnSync(geminiPath, ['--version'], { stdio: ['ignore', 'pipe', 'pipe'] });
   if (r.status !== 0) {
     console.error('❌ gemini --version failed');
     console.error('stdout:', r.stdout.toString());
@@ -179,16 +156,16 @@ export TMPDIR="${os.tmpdir()}"
   return geminiPath;
 }
 /* ─── start backend (Python) ───────────────────────────────────────── */
-async function startBackend () {
+async function startBackend() {
   if (app.isPackaged) {
     updateSplashStatus('Preparing AI backend...');
     process.env.GEMINI_PATH = ensureGemini();
     const exeName = process.platform === 'win32' ? 'backend.exe' : 'backend';
-    
+
     const backendBin = path.join(process.resourcesPath, 'bin', binDir(), exeName);
-    
+
     updateSplashStatus('Starting backend server...');
-    
+
     // Set up proper environment for Python backend
     const backendEnv = {
       ...process.env,
@@ -198,16 +175,16 @@ async function startBackend () {
       // Ensure Python can find system libraries
       DYLD_LIBRARY_PATH: process.env.DYLD_LIBRARY_PATH || '',
     };
-    
-    backendProc = spawn(backendBin, [], { 
-      stdio: ['ignore','inherit','inherit'],
+
+    backendProc = spawn(backendBin, [], {
+      stdio: ['ignore', 'inherit', 'inherit'],
       env: backendEnv
     });
   } else {
     console.log('⚙️  Dev mode: using local Python backend + global gemini-cli');
     updateSplashStatus('Starting development server...');
     process.env.GEMINI_PATH = 'gemini';
-    
+
     // Set up proper environment for development backend
     const devBackendEnv = {
       ...process.env,
@@ -216,11 +193,11 @@ async function startBackend () {
       TMPDIR: process.env.TMPDIR || os.tmpdir(),
       GEMINI_PATH: 'gemini',
     };
-    
+
     // In dev, server folder is one level up from desktop
     const script = path.join(process.cwd(), '..', 'server', 'backend.py');
     backendProc = spawn(process.env.PYTHON || 'python3', [script], {
-      stdio: ['ignore','inherit','inherit'],
+      stdio: ['ignore', 'inherit', 'inherit'],
       env: devBackendEnv
     });
   }
@@ -252,7 +229,7 @@ function createSplashScreen() {
   // Use temp directory instead of trying to write to ASAR
   const tempDir = os.tmpdir();
   const splashPath = path.join(tempDir, 'gemmit-splash.html');
-  
+
   // Get the correct icon path for both dev and production
   let iconPath;
   if (app.isPackaged) {
@@ -262,10 +239,10 @@ function createSplashScreen() {
     // In development
     iconPath = path.join(__dirname, '..', 'assets', 'icons', 'icon_128x128.png');
   }
-  
+
   // Convert to file URL
   const iconUrl = `file://${iconPath.replace(/\\/g, '/')}`;
-  
+
   // Create the splash HTML file
   const fs = require('fs');
   const splashHTML = `
@@ -363,9 +340,9 @@ function createSplashScreen() {
     const fallbackHTML = splashHTML.replace(/<img[^>]*>/, '');
     splashWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(fallbackHTML));
   }
-  
+
   splashWindow.center();
-  
+
   // Clean up the temporary file when splash closes
   splashWindow.on('closed', () => {
     try {
@@ -384,11 +361,7 @@ function updateSplashStatus(message) {
   }
 }
 
-function showSplashError(error) {
-  if (splashWindow && !splashWindow.isDestroyed()) {
-    splashWindow.webContents.send('splash-error', error);
-  }
-}
+
 
 function closeSplashScreen() {
   if (splashWindow && !splashWindow.isDestroyed()) {
@@ -398,31 +371,31 @@ function closeSplashScreen() {
 }
 
 /* ─── create main window ───────────────────────────────────────────── */
-function createWindow () {
-  const win = new BrowserWindow({ 
-    width: 1280, 
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1280,
     height: 800,
     show: false // Don't show until ready
   });
-  
+
   win.loadURL('http://127.0.0.1:8001/index.html');
-  
+
   win.once('ready-to-show', () => {
     closeSplashScreen();
     win.show();
   });
-  
+
   return win;
 }
 
 /* ─── app lifecycle ───────────────────────────────────────────────── */
 app.whenReady().then(async () => {
   createSplashScreen();
-  
+
   try {
     await startBackend();
     createWindow();
-    
+
     try {
       await autoUpdater.checkForUpdatesAndNotify();
     } catch (e) {
