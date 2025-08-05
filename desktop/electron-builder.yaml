@@ -17,6 +17,7 @@ mac:
   target: [dmg]
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
   icon: "assets/icons/icon.icns"
 win:
   target: [nsis]

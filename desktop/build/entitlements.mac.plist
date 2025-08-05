@@ -6,4 +6,19 @@
   <key>com.apple.security.cs.allow-jit</key><false/>
   <!-- Allow outbound network requests -->
   <key>com.apple.security.network.client</key><true/>
+  <!-- Allow file system access for reading/writing project files -->
+  <key>com.apple.security.files.user-selected.read-write</key><true/>
+  <!-- Allow access to user's home directory for Gemmit_Projects -->
+  <key>com.apple.security.files.downloads.read-write</key><true/>
+  <!-- Allow access to user home directory (broader permission) -->
+  <key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
+  <array>
+    <string>/Users/</string>
+  </array>
+  <!-- Allow temporary file creation in home directory -->
+  <key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+  <array>
+    <string>Gemmit_Projects/</string>
+    <string>.gemmit/</string>
+  </array>
 </dict></plist>
