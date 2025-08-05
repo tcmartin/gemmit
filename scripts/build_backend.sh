@@ -35,3 +35,6 @@ mv server/dist/backend* "$BIN_DIR/"
 
 echo "✅ Backend binary placed in $BIN_DIR"
 
+# Note: Only building for current architecture (ARM64)
+# Intel Macs can run ARM64 binaries through Rosetta 2
+

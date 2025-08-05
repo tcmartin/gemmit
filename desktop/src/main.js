@@ -116,7 +116,9 @@ async function startBackend () {
     updateSplashStatus('Preparing AI backend...');
     process.env.GEMINI_PATH = ensureGemini();
     const exeName = process.platform === 'win32' ? 'backend.exe' : 'backend';
+    
     const backendBin = path.join(process.resourcesPath, 'bin', binDir(), exeName);
+    
     updateSplashStatus('Starting backend server...');
     backendProc = spawn(backendBin, [], { stdio: ['ignore','inherit','inherit'] });
   } else {

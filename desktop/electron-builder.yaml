@@ -16,7 +16,7 @@ publish:
 mac:
   target:
     - target: dmg
-      arch: [x64, arm64]
+      arch: [arm64]  # Only build for Apple Silicon since we can't cross-compile the Python backend
   hardenedRuntime: false
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
