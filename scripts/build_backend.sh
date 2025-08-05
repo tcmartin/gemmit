@@ -4,9 +4,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PY=python3                     # use your interpreter if different
 
-# ── 1. Install deps ─────────────────────────────────────────────
-$PY -m pip install --upgrade pip
-$PY -m pip install -r "$ROOT/server/requirements.txt" pyinstaller
+# ── 1. Create virtual environment and install deps ─────────────
+VENV_DIR="$ROOT/server/.venv"
+if [ ! -d "$VENV_DIR" ]; then
+    echo "Creating virtual environment..."
+    $PY -m venv "$VENV_DIR"
+fi
+
+# Activate virtual environment
+source "$VENV_DIR/bin/activate"
+
+# Install dependencies
+pip install --upgrade pip
+pip install -r "$ROOT/server/requirements.txt" pyinstaller
 
 # ── 2. Build one-file binary with static web assets ─────────────
 cd "$ROOT/server"

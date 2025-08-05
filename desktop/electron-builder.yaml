@@ -28,7 +28,6 @@ win:
     - target: nsis
       arch: [x64, ia32]
   icon: "assets/icons/icon.ico"
-  publisherName: "Trevor Martin"
 
 linux:
   target:
@@ -38,4 +37,5 @@ linux:
       arch: [x64]
   icon: "assets/icons/icon.png"
   category: Development
+  maintainer: "Trevor Martin <tcmartin@example.com>"
 
