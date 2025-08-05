@@ -38,5 +38,9 @@
     "electron-squirrel-startup": "^1.0.1",
     "electron-updater": "^6.6.2",
     "tree-kill": "^1.2.2"
+  },
+  "packagerConfig": {
+    "icon": "assets/icons/icon" // points to icon.icns/.ico/.png base name
   }
+
 }
