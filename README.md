@@ -1,22 +1,35 @@
+
 <div align="center">
   <img src="assets/logos/gemmit-logo-128.png" alt="Gemmit Logo" width="128" height="128">
   <h1>Gemmit - AI-Powered Development Assistant</h1>
 </div>
 
-**Gemmit** is a cross-platform desktop application that combines the power of Google's Gemini AI with a streamlined development workflow. Built with Electron and Python, Gemmit provides an integrated environment for AI-assisted coding, project management, and rapid prototyping.
+**Completely Free & No Vendor Lock-In**
+
+- Runs entirely off Google's **Gemini CLI**—no local model downloads or OpenAI API keys required.
+- 100% local environment: your code and projects stay on your machine in `~/Gemmit_Projects`.
+- No vendor lock-in: build, customize, and extend however you like.
+- Scoped by default: Gemmit automatically “scopes out” tasks, analyzes your project, and proposes context-aware actions.
+
+**Seamless Mobile Integration**
+
+- Works with [gemmit-app](https://github.com/tcmartin/gemmit-app) for on-the-go AI edits and project management from your phone.
 
 ## 🚀 Key Features
 
-- **Native Desktop App**: Cross-platform Electron application with native OS integration
-- **AI-Powered Chat Interface**: Real-time streaming conversations with Gemini 2.5 Flash
-- **Project Management**: Automatic project scaffolding in `~/Gemmit_Projects`
-- **File Operations**: Built-in file browser, editor, and project management
-- **Development Workflow**: Integrated with PocketFlow methodology for structured development
-- **Auto-Updates**: Built-in update mechanism for seamless version management
+- **AI-Powered Chat Interface**: Real-time streaming conversations with Gemini 2.5 Flash over WebSockets.
+- **Project Scaffolding**: Automatic creation of new projects under `~/Gemmit_Projects` following the PocketFlow methodology.
+- **File Operations**: Browse, create, read, update, and delete files directly in-app.
+- **Scoped Intelligence**: AI introspects your existing codebase and suggests context-aware changes.
+- **Model Context Protocol (MCP) Support**: Configure custom M(odel)C(ontext)P(ipeline) servers via `.gemmit/settings.json`.
+- **Extensible CLI Core**: Leverage the full power of `gemini-cli` under the hood—swap in any Gemini-based model.
+- **Auto-Updates**: Built-in GitHub Releases integration for seamless version management.
+- **Cross-Platform**: Packaged for macOS (Intel & Apple Silicon), Windows, and Linux.
 
 ## 📁 Project Architecture
 
 ```
+
 gemmit/
 ├── desktop/                    # Electron frontend application
 │   ├── src/                   # Main Electron process and renderer
@@ -35,7 +48,8 @@ gemmit/
 │   └── prepare_tree.sh      # Project setup utilities
 ├── ai_guidelines.md         # AI assistant behavior guidelines
 └── pocketflowguide.md      # Development methodology guide
-```
+
+````
 
 ## 🛠️ Development Setup
 
@@ -43,7 +57,7 @@ gemmit/
 
 - **Node.js 18+** for Electron development
 - **Python 3.8+** for backend services
-- **Gemini CLI** installed and configured
+- **Gemini CLI** installed (automatically handled by gemmit)
 - **macOS/Windows/Linux** (cross-platform support)
 
 ### Installation
@@ -52,21 +66,22 @@ gemmit/
    ```bash
    git clone https://github.com/tcmartin/gemmit.git
    cd gemmit
-   ```
+````
 
 2. **Install desktop dependencies**
+
    ```bash
    cd desktop
    npm install
    ```
-
 3. **Install Python dependencies**
+
    ```bash
    cd ../server
    pip install -r requirements.txt
    ```
-
 4. **Build the backend binary**
+
    ```bash
    cd ../scripts
    ./build_backend.sh
@@ -74,17 +89,18 @@ gemmit/
 
 ### Running in Development
 
-1. **Start the Electron app**
-   ```bash
-   cd desktop
-   npm start
-   ```
+* **Start the Electron app**
 
-2. **Or run backend separately for debugging**
-   ```bash
-   cd server
-   python backend.py
-   ```
+  ```bash
+  cd desktop
+  npm start
+  ```
+* **Or run backend separately for debugging**
+
+  ```bash
+  cd server
+  python backend.py
+  ```
 
 ## 📦 Building for Production
 
@@ -92,155 +108,148 @@ gemmit/
 
 ```bash
 cd desktop
-npm run builder  # Creates platform-specific distributables
+npm run builder
 ```
 
-### Build Options
+### Build Targets
 
-- **macOS**: Creates `.dmg` installer with proper code signing and entitlements
-- **Windows**: Creates `.exe` installer with NSIS
-- **Linux**: Creates AppImage for universal compatibility
+* **macOS**: `.dmg` installer (Intel & Apple Silicon)
+* **Windows**: `.exe` installer (NSIS)
+* **Linux**: AppImage and `.deb` for Debian/Ubuntu
 
 ### Distribution Files
 
-Built applications are output to `desktop/dist/` with platform-specific formats:
-- macOS: `gemmit-1.0.0.dmg`
-- Windows: `gemmit Setup 1.0.0.exe`
-- Linux: `gemmit-1.0.0.AppImage`
+Built apps output to `desktop/dist/` with names like:
 
-## 🔧 Configuration
+* `gemmit-1.0.3.dmg`
+* `gemmit-1.0.3-arm64.dmg`
+* `gemmit Setup 1.0.3.exe`
+* `gemmit-1.0.3.AppImage`
+* `desktop_1.0.3_amd64.deb`
 
-### Environment Variables
+## 🔧 Configuration & Environment Variables
 
-- `GEMINI_PATH`: Path to Gemini CLI binary (default: `gemini`)
-- `GENERATIONS_DIR`: Project workspace directory (default: `~/Gemmit_Projects`)
-- `OUTPUT_DIR`: Output directory for generated files
-- `PORT`: WebSocket server port (default: 8000)
-- `HOST`: Server host address (default: 127.0.0.1)
+| Variable          | Description                      | Default                   |
+| ----------------- | -------------------------------- | ------------------------- |
+| `GEMINI_PATH`     | Path to your `gemini` CLI binary | `gemini`                  |
+| `GENERATIONS_DIR` | Workspace root for projects      | `~/Gemmit_Projects`       |
+| `OUTPUT_DIR`      | Directory for generated assets   | same as `GENERATIONS_DIR` |
+| `PORT`            | WebSocket server port            | `8000`                    |
+| `HOST`            | Server host address              | `127.0.0.1`               |
 
-### macOS Permissions
+## 🗂️ Model Context Protocol Example
 
-The app includes proper entitlements for:
-- File system access to user directories
-- Network client capabilities
-- Home directory read/write permissions for project management
+Create a `.gemini/settings.json` file *inside* your `~/Gemmit_Projects/.gemini/` folder:
+
+```json
+{
+  "theme": "GitHub",
+  "mcpServers": {
+    "imagegen": {
+      "command": "npx",
+      "args": ["imagegen-mcp", "--models", "gpt-image-1"],
+      "env": {
+        "OPENAI_API_KEY": "<your key or env var>"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    }
+  },
+  "hideTips": false
+}
+```
+
+This tells Gemmit how to spin up external MCP servers for image generation, automated end-to-end testing, or anything else you can script.
 
 ## 📥 Installation for Users
 
 ### macOS
-1. Download the appropriate .dmg file for your Mac architecture from [Releases](https://github.com/tcmartin/gemmit/releases)
-2. Open the .dmg and drag Gemmit to Applications
-3. **Important**: Due to unsigned builds, you may see "Gemmit is damaged" error
-4. **Fix**: Run this command in Terminal:
+
+1. Download the appropriate `.dmg` from [Releases](https://github.com/tcmartin/gemmit/releases)
+2. Open and drag Gemmit to Applications
+3. If you see “Gemmit is damaged”, run:
+
    ```bash
-   sudo xattr -rd com.apple.quarantine /Applications/gemmit.app
+   sudo xattr -rd com.apple.quarantine /Applications/Gemmit.app
    ```
-5. Or use our helper script:
+4. Or use our helper script:
+
    ```bash
    curl -sSL https://raw.githubusercontent.com/tcmartin/gemmit/master/scripts/fix_macos_gatekeeper.sh | bash
    ```
 
 ### Windows
-1. Download the Setup .exe file from [Releases](https://github.com/tcmartin/gemmit/releases)
-2. Run the installer (Windows may show a SmartScreen warning - click "More info" then "Run anyway")
-3. Launch from Start Menu or Desktop shortcut
+
+1. Download the Setup `.exe` from [Releases](https://github.com/tcmartin/gemmit/releases)
+2. Run the installer (ignore SmartScreen warnings)
 
 ### Linux
-1. Download the .AppImage file for universal compatibility, or .deb for Debian/Ubuntu from [Releases](https://github.com/tcmartin/gemmit/releases)
-2. For AppImage: `chmod +x gemmit-1.0.0.AppImage && ./gemmit-1.0.0.AppImage`
-3. For DEB: `sudo dpkg -i desktop_1.0.0_amd64.deb`
 
-The app will automatically set up your workspace in ~/Gemmit_Projects on first launch.
+* **AppImage**:
+
+  ```bash
+  chmod +x gemmit-1.0.3.AppImage
+  ./gemmit-1.0.3.AppImage
+  ```
+* **DEB**:
+
+  ```bash
+  sudo dpkg -i desktop_1.0.3_amd64.deb
+  ```
 
 ## 🎯 Usage Workflow
 
-### 1. Project Initialization
-- Launch Gemmit desktop app
-- Projects are automatically created in `~/Gemmit_Projects/`
-- AI guidelines and PocketFlow methodology are provisioned automatically
+1. **Initialize**: Launch Gemmit, point it at or create a project in `~/Gemmit_Projects/`.
+2. **Scope**: Gemmit analyzes your code and suggests next steps.
+3. **Chat**: Use the built-in chat UI to prompt Gemini for code, docs, or tests.
+4. **File Ops**: Modify, save, or generate new files—all from within the app.
+5. **Iteration**: Repeat with PocketFlow methodology—design, implement, optimize.
 
-### 2. AI-Assisted Development
-- Use the integrated chat interface to communicate with Gemini AI
-- Real-time streaming responses with conversation history
-- File operations (create, read, update) through the interface
+## 🔌 WebSocket API
 
-### 3. Development Methodology
-Gemmit follows the **PocketFlow** approach:
-- **Requirements**: Human-driven requirement gathering
-- **Design**: Collaborative high-level system design
-- **Implementation**: AI-assisted coding with human oversight
-- **Optimization**: Iterative improvement and testing
+**Endpoint**: `ws://localhost:8000`
 
-## 🔌 API Integration
+### Chat Prompt
 
-### WebSocket API
-
-The backend exposes a WebSocket API on `ws://localhost:8000` with support for:
-
-- **Chat Operations**: Send prompts and receive streaming responses
-- **File Operations**: List, read, and write project files
-- **Conversation Management**: Persistent conversation history
-
-### Example WebSocket Messages
-
-```javascript
-// Send a prompt
-{
-  "type": "prompt",
-  "prompt": "Create a React component for user authentication",
-  "conversationId": "conv-123"
-}
-
-// List project files
-{
-  "type": "list_files"
-}
-
-// Save a file
-{
-  "type": "save_file",
-  "filename": "component.jsx",
-  "content": "// React component code..."
-}
+```json
+{ "type": "prompt", "prompt": "Generate a React login form", "conversationId": "abc-123" }
 ```
 
-## 🚢 Deployment
+### File Listing
 
-### Auto-Updates
-- Built-in electron-updater integration
-- Automatic update checks and installation
-- GitHub releases integration for distribution
+```json
+{ "type": "list_files" }
+```
 
-### Code Signing
-- macOS: Proper entitlements and hardened runtime
-- Windows: Authenticode signing support
-- Cross-platform security best practices
+### Save File
+
+```json
+{ "type": "save_file", "filename": "LoginForm.jsx", "content": "<code>" }
+```
+
+## 🚢 Deployment & Auto-Updates
+
+* Uses `electron-updater` for background update checks.
+* Releases hosted on GitHub trigger installer downloads.
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Follow the PocketFlow methodology outlined in `pocketflowguide.md`
-- Ensure cross-platform compatibility
-- Test on all supported platforms before submitting PRs
-- Update documentation for new features
+1. Fork, branch, code, PR.
+2. Follow PocketFlow in `pocketflowguide.md`.
+3. Test on all platforms.
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT. See [LICENSE](LICENSE).
 
 ## 🙏 Acknowledgments
 
-- **Google Gemini**: AI model integration
-- **Electron**: Cross-platform desktop framework
-- **PocketFlow**: Development methodology framework
-- **Open Source Community**: Various dependencies and tools
+* **Google Gemini**
+* **Electron**
+* **PocketFlow**
+* **Open Source Community**
 
 ---
 
