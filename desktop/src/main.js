@@ -37,19 +37,21 @@ function waitPort (port, host = '127.0.0.1') {
 }
 
 /* ─── ONE-TIME per launch – ensure Gemini CLI via embedded Node/npm ──── */
-function ensureGemini () {
+function ensureGemini() {
   const cacheDir = path.join(os.homedir(), '.gemmit');
+  // ensure prefix dirs exist
+  if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
   const prefixBin = path.join(cacheDir, 'bin');
   if (!fs.existsSync(prefixBin)) fs.mkdirSync(prefixBin, { recursive: true });
-  if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
   const libModules = path.join(cacheDir, 'lib', 'node_modules');
   if (!fs.existsSync(libModules)) fs.mkdirSync(libModules, { recursive: true });
 
-  const nodeBin = path.join(process.resourcesPath, 'bin', binDir(),
+  // locate embedded node/npm
+  const nodeBin = path.join(
+    process.resourcesPath, 'bin', binDir(),
     process.platform === 'win32' ? 'node.exe' : 'node'
   );
   const npmCli = path.join(path.dirname(nodeBin), 'npm', 'bin', 'npm-cli.js');
-
   if (!fs.existsSync(nodeBin) || !fs.existsSync(npmCli)) {
     throw new Error('Embedded Node/npm runtime is missing; run fetch_node_runtimes.sh');
   }
@@ -61,22 +63,31 @@ function ensureGemini () {
     npm_config_cache:           path.join(cacheDir, '.npm-cache'),
   };
 
-  const r = spawnSync(nodeBin, [
-    npmCli, 'exec', '--yes', '@google/gemini-cli@latest', '--', '--version'
-  ], { env, stdio: ['ignore','pipe','pipe'] });
-
+  // ① install globally into our prefix
+  let r = spawnSync(nodeBin, [
+    npmCli, 'install', '--global', '@google/gemini-cli@latest'
+  ], { env, stdio: ['ignore','inherit','inherit'] });
   if (r.status !== 0) {
-    console.error('❌ npm exec gemini-cli failed');
-    console.error('--- stdout ---\n', r.stdout.toString());
-    console.error('--- stderr ---\n', r.stderr.toString());
-    throw new Error('npm exec gemini-cli failed; see logs above');
+    throw new Error('npm install gemini-cli failed; see previous logs');
   }
 
-  return path.join(cacheDir,
-    process.platform === 'win32' ? 'bin\\gemini.cmd' : 'bin/gemini'
+  // ② sanity-check with --version
+  const geminiPath = path.join(prefixBin, process.platform === 'win32'
+    ? 'gemini.cmd' : 'gemini'
   );
-}
+  if (!fs.existsSync(geminiPath)) {
+    throw new Error('Gemini CLI not found after install at ' + geminiPath);
+  }
+  r = spawnSync(geminiPath, ['--version'], { stdio: ['ignore','pipe','pipe'] });
+  if (r.status !== 0) {
+    console.error('❌ gemini --version failed');
+    console.error('stdout:', r.stdout.toString());
+    console.error('stderr:', r.stderr.toString());
+    throw new Error('gemini --version failed; see logs above');
+  }
 
+  return geminiPath;
+}
 /* ─── start backend (Python) ───────────────────────────────────────── */
 async function startBackend () {
   if (app.isPackaged) {
