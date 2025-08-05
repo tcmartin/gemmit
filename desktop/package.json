@@ -1,6 +1,6 @@
 {
   "repository": "github.com/tcmartin/gemmit",
-  "name": "desktop",
+  "name": "gemmit",
   "productName": "Gemmit",
   "version": "1.0.0",
   "description": "AI-Powered Development Assistant with Gemini integration",

@@ -44,5 +44,5 @@ linux:
       arch: [x64]
   icon: "assets/icons/icon.png"
   category: Development
-  maintainer: "Trevor Martin <tcmartin@example.com>"
+  maintainer: "Trevor Martin <trevor@datastreamssolutions.com>"
 
