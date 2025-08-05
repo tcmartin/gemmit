@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.1",
+    "tree-kill": "^1.2.2"
+  }
+}

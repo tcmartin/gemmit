@@ -1,13 +1,17 @@
 appId:   com.datastreams.gemmit
 productName: gemmit
 files:
-  - dist/**                 # webpack output
-  - resources/bin/**        # backend + gemini
+  - src/**                 # webpack output
+  - app/**        # backend + gemini
+  - node_modules/**
 extraResources:
   - from: resources/bin
     to: bin
 asar: true
-publish: { provider: github }
+publish:
+  provider: github
+  owner: tcmartin
+  repo: gemmit
 
 mac:
   target: [dmg]

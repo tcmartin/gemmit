@@ -1,15 +1,17 @@
 {
+  "repository": "github.com/tcmartin/gemmit",
   "name": "desktop",
   "productName": "desktop",
   "version": "1.0.0",
   "description": "My Electron application description",
-  "main": ".webpack/main",
+  "main": "src/main.js",
   "scripts": {
+    "prep": "electron-forge package --platform=darwin --arch=arm64 --outDir .forge-pack",
     "start": "electron-forge start",
     "package": "electron-forge package",
-    "make": "electron-forge make",
     "publish": "electron-forge publish",
-    "lint": "echo \"No linting configured\""
+    "lint": "echo \"No linting configured\"",
+    "builder": "electron-builder --mac --arm64 --publish never"
   },
   "keywords": [],
   "author": "trevormartin",
@@ -29,9 +31,12 @@
     "css-loader": "^6.11.0",
     "electron": "37.2.5",
     "node-loader": "^2.1.0",
+    "npm-run-all": "^4.1.5",
     "style-loader": "^3.3.4"
   },
   "dependencies": {
-    "electron-squirrel-startup": "^1.0.1"
+    "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.6.2",
+    "tree-kill": "^1.2.2"
   }
 }
