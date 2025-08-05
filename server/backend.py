@@ -24,28 +24,93 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # ─── Provision AI guidance docs into WORK_DIR/.gemmit ────────────
 import sys, shutil
 
-config_dir = WORK_DIR / ".gemmit"
-config_dir.mkdir(parents=True, exist_ok=True)
+def provision_guidance_docs():
+    """Provision AI guidance documents to the .gemmit directory with proper error handling."""
+    try:
+        config_dir = WORK_DIR / ".gemmit"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Check if we have write permissions to the config directory
+        if not os.access(config_dir, os.W_OK):
+            print(f"Warning: No write permission to {config_dir}", file=sys.stderr)
+            return
+            
+    except Exception as e:
+        print(f"Warning: Could not create .gemmit directory: {e}", file=sys.stderr)
+        return
 
-for doc in ("ai_guidelines.md", "pocketflowguide.md"):
-    src = BASE_DIR / doc
-    dest = config_dir / doc
+    for doc in ("ai_guidelines.md", "pocketflowguide.md"):
+        src = BASE_DIR / doc
+        dest = config_dir / doc
+        
+        # Skip if source doesn't exist
+        if not src.exists():
+            print(f"Warning: source file {src} not found", file=sys.stderr)
+            continue
+            
+        # Check if we need to copy
+        should_copy = False
+        if not dest.exists():
+            should_copy = True
+        else:
+            try:
+                # Compare modification times
+                if src.stat().st_mtime > dest.stat().st_mtime:
+                    should_copy = True
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Could not check file times for {doc}: {e}", file=sys.stderr)
+                # If we can't check times, assume we should copy
+                should_copy = True
+        
+        if should_copy:
+            try:
+                # Use copy2 to preserve metadata, fallback to copy if that fails
+                try:
+                    shutil.copy2(src, dest)
+                except (OSError, PermissionError):
+                    shutil.copy(src, dest)
+                print(f"Copied {doc} to .gemmit directory")
+            except Exception as e:
+                print(f"Warning: could not copy {src} → {dest}: {e}", file=sys.stderr)
+                # On macOS, compiled apps might need special permissions
+                if sys.platform == "darwin" and getattr(sys, "frozen", False):
+                    print(f"Note: If running as compiled app on macOS, you may need to grant file access permissions", file=sys.stderr)
+
+# Provision the guidance documents
+provision_guidance_docs()
+
+# Fallback: If files still don't exist, create minimal versions
+def create_fallback_docs():
+    """Create minimal fallback versions of guidance docs if copying failed."""
+    config_dir = WORK_DIR / ".gemmit"
     
-    # Copy if destination doesn't exist or source is newer
-    should_copy = False
-    if not dest.exists():
-        should_copy = True
-    elif src.exists() and src.stat().st_mtime > dest.stat().st_mtime:
-        should_copy = True
+    fallback_content = {
+        "ai_guidelines.md": """# AI Guidelines
+This file contains AI guidance for the project.
+Note: This is a fallback version - the full guidelines may not have been copied.
+""",
+        "pocketflowguide.md": """# PocketFlow Guide
+This file contains the PocketFlow development guide.
+Note: This is a fallback version - the full guide may not have been copied.
+"""
+    }
     
-    if should_copy and src.exists():
-        try:
-            shutil.copy2(src, dest)  # copy2 preserves metadata
-            print(f"Copied {doc} to .gemmit directory")
-        except Exception as e:
-            print(f"Warning: could not copy {src} → {dest}: {e}", file=sys.stderr)
-    elif not src.exists():
-        print(f"Warning: source file {src} not found", file=sys.stderr)
+    for doc, content in fallback_content.items():
+        dest = config_dir / doc
+        if not dest.exists():
+            try:
+                dest.write_text(content)
+                print(f"Created fallback {doc}")
+            except Exception as e:
+                print(f"Warning: Could not create fallback {doc}: {e}", file=sys.stderr)
+
+# Only create fallbacks if the main provisioning had issues
+try:
+    config_dir = WORK_DIR / ".gemmit"
+    if not (config_dir / "ai_guidelines.md").exists() or not (config_dir / "pocketflowguide.md").exists():
+        create_fallback_docs()
+except Exception:
+    pass  # Silently fail fallback creation
 
 
 GEMINI_BIN = os.getenv('GEMINI_PATH', 'gemini')

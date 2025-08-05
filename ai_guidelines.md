@@ -67,4 +67,4 @@ This file defines the default instructions for the AI assistant when a new proje
 ---
 
 > **Note**: The AI should always maintain the three core project docs—`requirements.md`, `design.md`, `tasks.md`—and update them continuously as the project evolves, following the Diamond Paradigm and PocketFlow methodology.
-
+> **Note**: If you're making webpages, websites, etc, serve the stuff. Even if you're making mobile apps, if it's possible to serve it, serve it. If you're making something that can't be served, at least serve the directory. Try to serve whatever you serve on port 5002 unless specified otherwise or if it is blocked (and in that case, tell the user the different port you chose)
