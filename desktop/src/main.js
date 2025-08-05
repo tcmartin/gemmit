@@ -72,20 +72,45 @@ function ensureGemini() {
   }
 
   const nodeDir = path.dirname(nodeBin);
+  
+  // Ensure we have a proper PATH even when launched from Finder
+  const basePath = process.env.PATH || '/usr/local/bin:/usr/bin:/bin';
+  
   const env = {
     ...process.env,
     npm_config_prefix:          cacheDir,
     npm_config_update_notifier: 'false',
     npm_config_cache:           path.join(cacheDir, '.npm-cache'),
     // Add the node binary directory to PATH so npm can find node
-    PATH: `${nodeDir}${path.delimiter}${process.env.PATH || ''}`,
+    PATH: `${nodeDir}${path.delimiter}${basePath}`,
     // Also set NODE_PATH to help with module resolution
     NODE_PATH: path.join(nodeDir, '..', 'lib', 'node_modules'),
+    // Ensure HOME is set (sometimes missing when launched from Finder)
+    HOME: process.env.HOME || os.homedir(),
+    // Set SHELL to bash for script execution
+    SHELL: '/bin/bash',
   };
+
+  // Debug logging to file
+  const debugLog = `
+Debug Info:
+Current working directory: ${process.cwd()}
+Node binary path: ${nodeBin}
+Node directory in PATH: ${nodeDir}
+npm-cli.js path: ${npmCli}
+Node binary exists: ${fs.existsSync(nodeBin)}
+npm-cli.js exists: ${fs.existsSync(npmCli)}
+Full PATH: ${env.PATH}
+process.resourcesPath: ${process.resourcesPath}
+`;
   
-  console.log('Node binary path:', nodeBin);
-  console.log('Node directory in PATH:', nodeDir);
-  console.log('Full PATH:', env.PATH);
+  try {
+    fs.writeFileSync(path.join(os.tmpdir(), 'gemmit-debug.log'), debugLog);
+  } catch (e) {
+    // Ignore debug log errors
+  }
+  
+
 
   updateSplashStatus('Downloading AI components...');
 
@@ -94,8 +119,13 @@ function ensureGemini() {
   const tempDir = os.tmpdir();
   const wrapperScript = path.join(tempDir, 'npm-wrapper.sh');
   const wrapperContent = `#!/bin/bash
-export PATH="${nodeDir}:$PATH"
+# Set up environment for npm execution
+export PATH="${nodeDir}:/usr/local/bin:/usr/bin:/bin"
 export NODE_PATH="${path.join(nodeDir, '..', 'lib', 'node_modules')}"
+export HOME="${os.homedir()}"
+export TMPDIR="${os.tmpdir()}"
+
+# Execute npm with embedded node
 "${nodeBin}" "${npmCli}" install --global @google/gemini-cli@latest
 `;
 
@@ -158,15 +188,40 @@ async function startBackend () {
     const backendBin = path.join(process.resourcesPath, 'bin', binDir(), exeName);
     
     updateSplashStatus('Starting backend server...');
-    backendProc = spawn(backendBin, [], { stdio: ['ignore','inherit','inherit'] });
+    
+    // Set up proper environment for Python backend
+    const backendEnv = {
+      ...process.env,
+      PATH: `/usr/local/bin:/usr/bin:/bin${path.delimiter}${process.env.PATH || ''}`,
+      HOME: process.env.HOME || os.homedir(),
+      TMPDIR: process.env.TMPDIR || os.tmpdir(),
+      // Ensure Python can find system libraries
+      DYLD_LIBRARY_PATH: process.env.DYLD_LIBRARY_PATH || '',
+    };
+    
+    backendProc = spawn(backendBin, [], { 
+      stdio: ['ignore','inherit','inherit'],
+      env: backendEnv
+    });
   } else {
     console.log('⚙️  Dev mode: using local Python backend + global gemini-cli');
     updateSplashStatus('Starting development server...');
     process.env.GEMINI_PATH = 'gemini';
+    
+    // Set up proper environment for development backend
+    const devBackendEnv = {
+      ...process.env,
+      PATH: `/usr/local/bin:/usr/bin:/bin${path.delimiter}${process.env.PATH || ''}`,
+      HOME: process.env.HOME || os.homedir(),
+      TMPDIR: process.env.TMPDIR || os.tmpdir(),
+      GEMINI_PATH: 'gemini',
+    };
+    
     // In dev, server folder is one level up from desktop
     const script = path.join(process.cwd(), '..', 'server', 'backend.py');
     backendProc = spawn(process.env.PYTHON || 'python3', [script], {
-      stdio: ['ignore','inherit','inherit']
+      stdio: ['ignore','inherit','inherit'],
+      env: devBackendEnv
     });
   }
 
