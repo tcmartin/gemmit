@@ -22,7 +22,9 @@ pip install -r "$ROOT/server/requirements.txt" pyinstaller
 cd "$ROOT/server"
 pyinstaller backend.py \
   --onefile --name backend \
-  --add-data "$ROOT/app:app"
+  --add-data "$ROOT/app:app" \
+  --add-data "$ROOT/ai_guidelines.md:." \
+  --add-data "$ROOT/pocketflowguide.md:."
 
 # ── 3. Move artefact next to Electron resources ─────────────────
 cd "$ROOT"
