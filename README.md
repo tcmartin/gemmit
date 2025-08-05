@@ -126,7 +126,7 @@ Built apps output to `desktop/dist/` with names like:
 
 ## 🗂️ Model Context Protocol Example
 
-Create a `.gemmit/settings.json` file *inside* your `~/Gemmit_Projects/<your-project>/.gemmit/` folder:
+Create a `.gemini/settings.json` file *inside* your `~/Gemmit_Projects/.gemini/` folder:
 
 ```json
 {
