@@ -58,9 +58,11 @@ function ensureGemini() {
   if (!fs.existsSync(libModules)) fs.mkdirSync(libModules, { recursive: true });
 
   // Check if Gemini CLI is already installed
-  const geminiPath = path.join(prefixBin, process.platform === 'win32'
-    ? 'gemini.cmd' : 'gemini'
-  );
+  // On Windows, npm global installs put binaries in the prefix root
+  // On Unix/macOS/Linux, npm global installs put binaries in prefix/bin
+  const geminiPath = process.platform === 'win32'
+    ? path.join(cacheDir, 'gemini.cmd')
+    : path.join(prefixBin, 'gemini');
 
   if (fs.existsSync(geminiPath)) {
     updateSplashStatus('AI backend ready!');
