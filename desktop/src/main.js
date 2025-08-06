@@ -45,8 +45,84 @@ function waitPort(port, host = '127.0.0.1') {
   });
 }
 
+/* ─── check if Gemini CLI is authenticated ──────────────────────────── */
+function isGeminiAuthenticated() {
+  const settingsPath = path.join(os.homedir(), '.gemini', 'settings.json');
+  return fs.existsSync(settingsPath);
+}
+
+/* ─── handle Gemini authentication at startup ──────────────────────── */
+async function handleGeminiAuthentication(geminiPath) {
+  return new Promise((resolve, reject) => {
+    try {
+      // Handle npx command properly
+      let authCommand;
+      if (geminiPath.startsWith('npx ')) {
+        authCommand = `${geminiPath}`;
+      } else {
+        // For file paths, just run gemini without auth subcommand
+        authCommand = `${geminiPath}`;
+      }
+      
+      if (process.platform === 'win32') {
+        // Windows: Open Command Prompt with gemini auth
+        const { spawn } = require('child_process');
+        spawn('cmd', ['/c', 'start', 'cmd', '/k', `${authCommand} && echo Authentication completed. You can close this window and return to Gemmit. && pause`], {
+          detached: true,
+          stdio: 'ignore'
+        }).unref();
+      } else if (process.platform === 'darwin') {
+        // macOS: Use Terminal app
+        const { spawn } = require('child_process');
+        const script = `tell application "Terminal" to do script "${authCommand}; echo 'Authentication completed. You can close this window and return to Gemmit.'"`;
+        spawn('osascript', ['-e', script], {
+          detached: true,
+          stdio: 'ignore'
+        }).unref();
+      } else {
+        // Linux: Try common terminal emulators
+        const { spawn } = require('child_process');
+        const terminals = ['gnome-terminal', 'xterm', 'konsole', 'x-terminal-emulator'];
+        let launched = false;
+        
+        for (const term of terminals) {
+          try {
+            if (term === 'gnome-terminal') {
+              spawn(term, ['--', 'bash', '-c', `${authCommand}; echo 'Authentication completed. You can close this window and return to Gemmit.'; read -p 'Press Enter to close...'`], {
+                detached: true,
+                stdio: 'ignore'
+              }).unref();
+            } else {
+              spawn(term, ['-e', `bash -c "${authCommand}; echo 'Authentication completed. You can close this window and return to Gemmit.'; read -p 'Press Enter to close...'""`], {
+                detached: true,
+                stdio: 'ignore'
+              }).unref();
+            }
+            launched = true;
+            break;
+          } catch (e) {
+            // Try next terminal
+            continue;
+          }
+        }
+        
+        if (!launched) {
+          console.warn('Could not find a suitable terminal emulator for authentication');
+        }
+      }
+      
+      // Give some time for the terminal to launch
+      setTimeout(resolve, 1000);
+      
+    } catch (error) {
+      console.error('Failed to launch authentication terminal:', error);
+      reject(error);
+    }
+  });
+}
+
 /* ─── ONE-TIME per launch – ensure Gemini CLI via embedded Node/npm ──── */
-function ensureGemini() {
+async function ensureGemini() {
   updateSplashStatus('Setting up AI backend...');
 
   const cacheDir = path.join(os.homedir(), '.gemmit');
@@ -65,41 +141,69 @@ function ensureGemini() {
     : path.join(prefixBin, 'gemini');
 
   if (fs.existsSync(geminiPath)) {
+    updateSplashStatus('Gemini CLI found - checking authentication...');
+    
+    // Check authentication even if CLI is already installed
+    if (!isGeminiAuthenticated()) {
+      updateSplashStatus('Authentication required - opening auth window...');
+      await handleGeminiAuthentication(geminiPath);
+    }
+    
     updateSplashStatus('AI backend ready!');
     return geminiPath;
   }
 
   updateSplashStatus('Installing Gemini CLI...');
 
-  // locate embedded node/npm
-  const nodeBin = path.join(
-    process.resourcesPath, 'bin', binDir(),
-    process.platform === 'win32' ? 'node.exe' : 'node'
-  );
-  const npmCli = path.join(path.dirname(nodeBin), 'npm', 'bin', 'npm-cli.js');
-  if (!fs.existsSync(nodeBin) || !fs.existsSync(npmCli)) {
-    throw new Error('Embedded Node/npm runtime is missing; run fetch_node_runtimes.sh');
+  // In development, use system node/npm; in production, use embedded runtime
+  let nodeBin, npmCli, nodeDir, env;
+  
+  if (app.isPackaged) {
+    // Production: use embedded node/npm
+    nodeBin = path.join(
+      process.resourcesPath, 'bin', binDir(),
+      process.platform === 'win32' ? 'node.exe' : 'node'
+    );
+    npmCli = path.join(path.dirname(nodeBin), 'npm', 'bin', 'npm-cli.js');
+    if (!fs.existsSync(nodeBin) || !fs.existsSync(npmCli)) {
+      throw new Error('Embedded Node/npm runtime is missing; run fetch_node_runtimes.sh');
+    }
+    nodeDir = path.dirname(nodeBin);
+  } else {
+    // Development: use system node/npm
+    nodeBin = 'node';
+    npmCli = null; // Will use 'npm' command directly
+    nodeDir = null;
   }
-
-  const nodeDir = path.dirname(nodeBin);
 
   // Ensure we have a proper PATH even when launched from Finder
   const basePath = process.env.PATH || '/usr/local/bin:/usr/bin:/bin';
 
-  const env = {
-    ...process.env,
-    npm_config_prefix: cacheDir,
-    npm_config_update_notifier: 'false',
-    npm_config_cache: path.join(cacheDir, '.npm-cache'),
-    // Add the node binary directory to PATH so npm can find node
-    PATH: `${nodeDir}${path.delimiter}${basePath}`,
-    // Also set NODE_PATH to help with module resolution
-    NODE_PATH: path.join(nodeDir, '..', 'lib', 'node_modules'),
-    // Ensure HOME is set (sometimes missing when launched from Finder)
-    HOME: process.env.HOME || os.homedir(),
-    // Set SHELL to bash for script execution
-    SHELL: '/bin/bash',
-  };
+  if (app.isPackaged && nodeDir) {
+    env = {
+      ...process.env,
+      npm_config_prefix: cacheDir,
+      npm_config_update_notifier: 'false',
+      npm_config_cache: path.join(cacheDir, '.npm-cache'),
+      // Add the node binary directory to PATH so npm can find node
+      PATH: `${nodeDir}${path.delimiter}${basePath}`,
+      // Also set NODE_PATH to help with module resolution
+      NODE_PATH: path.join(nodeDir, '..', 'lib', 'node_modules'),
+      // Ensure HOME is set (sometimes missing when launched from Finder)
+      HOME: process.env.HOME || os.homedir(),
+      // Set SHELL to bash for script execution
+      SHELL: '/bin/bash',
+    };
+  } else {
+    // Development: use system environment with npm prefix
+    env = {
+      ...process.env,
+      npm_config_prefix: cacheDir,
+      npm_config_update_notifier: 'false',
+      npm_config_cache: path.join(cacheDir, '.npm-cache'),
+      HOME: process.env.HOME || os.homedir(),
+    };
+  }
 
   // Debug logging to file
   const debugLog = `
@@ -122,16 +226,28 @@ process.resourcesPath: ${process.resourcesPath}
 
 
 
-  updateSplashStatus('Installing Gemini CLI with bundled npm...');
+  updateSplashStatus('Installing Gemini CLI...');
 
-  // Use our embedded Node.js to run npm directly
-  // This ensures we're using our npm, not the system's npm
-  const r = spawnSync(nodeBin, [
-    npmCli, 'install', '--global', '@google/gemini-cli@latest'
-  ], {
-    env,
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
+  // Use appropriate npm command based on mode
+  let r;
+  if (app.isPackaged && npmCli) {
+    // Production: Use embedded Node.js to run npm directly
+    r = spawnSync(nodeBin, [
+      npmCli, 'install', '--global', '@google/gemini-cli@latest'
+    ], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+  } else {
+    // Development: Use system npm
+    r = spawnSync('npm', [
+      'install', '--global', '@google/gemini-cli@latest'
+    ], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+  }
+  
   if (r.status !== 0) {
     console.error('npm install failed with status:', r.status);
     console.error('stdout:', r.stdout?.toString());
@@ -154,14 +270,24 @@ process.resourcesPath: ${process.resourcesPath}
     throw new Error('gemini --version failed; see logs above');
   }
 
+  // ③ Check and handle authentication
+  updateSplashStatus('Checking authentication...');
+  if (!isGeminiAuthenticated()) {
+    updateSplashStatus('Authentication required - opening auth window...');
+    await handleGeminiAuthentication(geminiPath);
+  }
+
   updateSplashStatus('AI backend ready!');
   return geminiPath;
 }
 /* ─── start backend (Python) ───────────────────────────────────────── */
 async function startBackend() {
+  let geminiPath;
+
   if (app.isPackaged) {
     updateSplashStatus('Preparing AI backend...');
-    process.env.GEMINI_PATH = ensureGemini();
+    geminiPath = await ensureGemini();
+    process.env.GEMINI_PATH = geminiPath;
     const exeName = process.platform === 'win32' ? 'backend.exe' : 'backend';
 
     const backendBin = path.join(process.resourcesPath, 'bin', binDir(), exeName);
@@ -183,9 +309,20 @@ async function startBackend() {
       env: backendEnv
     });
   } else {
-    console.log('⚙️  Dev mode: using local Python backend + global gemini-cli');
+    console.log('⚙️  Dev mode: using local Python backend + npx gemini-cli');
+    updateSplashStatus('Checking authentication...');
+    
+    // Use npx to run gemini CLI (no installation needed)
+    geminiPath = 'npx @google/gemini-cli';
+    
+    // Check if authenticated and handle if not
+    if (!isGeminiAuthenticated()) {
+      updateSplashStatus('Authentication required - opening auth window...');
+      await handleGeminiAuthentication(geminiPath);
+    }
+    
     updateSplashStatus('Starting development server...');
-    process.env.GEMINI_PATH = 'gemini';
+    process.env.GEMINI_PATH = geminiPath;
 
     // Set up proper environment for development backend
     const devBackendEnv = {
@@ -193,12 +330,16 @@ async function startBackend() {
       PATH: `/usr/local/bin:/usr/bin:/bin${path.delimiter}${process.env.PATH || ''}`,
       HOME: process.env.HOME || os.homedir(),
       TMPDIR: process.env.TMPDIR || os.tmpdir(),
-      GEMINI_PATH: 'gemini',
+      GEMINI_PATH: geminiPath,
     };
 
     // In dev, server folder is one level up from desktop
     const script = path.join(process.cwd(), '..', 'server', 'backend.py');
-    backendProc = spawn(process.env.PYTHON || 'python3', [script], {
+    const pythonPath = process.env.PYTHON || (process.platform === 'win32' ? 
+      path.join(process.cwd(), '..', 'server', '.venv', 'Scripts', 'python.exe') : 
+      'python3');
+    
+    backendProc = spawn(pythonPath, [script], {
       stdio: ['ignore', 'inherit', 'inherit'],
       env: devBackendEnv
     });
