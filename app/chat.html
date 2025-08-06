@@ -83,7 +83,9 @@
     // WebSocket
     const wsUrl = cfg.wsUrl || 'ws://localhost:8000';
     const socket = new WebSocket(wsUrl);
-    socket.onopen = () => console.log('Socket open');
+    socket.onopen = () => {
+      console.log('Socket open');
+    };
     socket.onmessage = e => {
       const msg = JSON.parse(e.data);
       if (msg.type === 'stream') appendBot(msg.data);

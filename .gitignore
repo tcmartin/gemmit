@@ -54,7 +54,7 @@ app/dist/
 # ───────────────────────────────────────────────────────────────
 desktop/node_modules/
 # Webpack output (development)
-desktop/dist/
+desktop/dist*/
 # electron-builder & electron-forge output
 desktop/out/
 desktop/release-builds/
