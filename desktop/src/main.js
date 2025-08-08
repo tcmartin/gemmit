@@ -25,12 +25,12 @@ function binDir() {
   if (process.platform === 'darwin') return process.arch === 'arm64' ? 'mac-arm64' : 'mac-x64';
   return 'linux';
 }
-// ─── make sure our embedded node lives on PATH so “#!/usr/bin/env node” works ────────
+// ─── make sure our embedded node lives on PATH so "#!/usr/bin/env node" works ────────
 if (app.isPackaged) {
     // path to your bundled node binary
     const nodeDirPath = path.join(process.resourcesPath, 'bin', binDir());
-    // prepend it so child processes can find `node`
-    process.env.PATH = `${nodeDirPath}${path.delimiter}${process.env.PATH}`;
+    // append it so system tools are found first, but node is still available
+    process.env.PATH = `${process.env.PATH}${path.delimiter}${nodeDirPath}`;
   }
   
 
@@ -176,17 +176,19 @@ async function ensureGemini() {
     nodeDir = null;
   }
 
-  // Ensure we have a proper PATH even when launched from Finder
-  const basePath = process.env.PATH || '/usr/local/bin:/usr/bin:/bin';
-
+  // Ensure we have a proper PATH that includes system tools for MCP servers
+  const systemPath = process.env.PATH || (process.platform === 'win32' 
+    ? 'C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem' 
+    : '/usr/local/bin:/usr/bin:/bin');
+  
   if (app.isPackaged && nodeDir) {
     env = {
       ...process.env,
       npm_config_prefix: cacheDir,
       npm_config_update_notifier: 'false',
       npm_config_cache: path.join(cacheDir, '.npm-cache'),
-      // Add the node binary directory to PATH so npm can find node
-      PATH: `${nodeDir}${path.delimiter}${basePath}`,
+      // Include system PATH first so MCP servers can find npx, python, etc.
+      PATH: `${systemPath}${path.delimiter}${nodeDir}`,
       // Also set NODE_PATH to help with module resolution
       NODE_PATH: path.join(nodeDir, '..', 'lib', 'node_modules'),
       // Ensure HOME is set (sometimes missing when launched from Finder)
@@ -294,10 +296,12 @@ async function startBackend() {
 
     updateSplashStatus('Starting backend server...');
 
-    // Set up proper environment for Python backend
+    // Set up proper environment for Python backend with full system access for MCP servers
     const backendEnv = {
       ...process.env,
-      PATH: `/usr/local/bin:/usr/bin:/bin${path.delimiter}${process.env.PATH || ''}`,
+      PATH: process.env.PATH || (process.platform === 'win32' 
+        ? 'C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem' 
+        : '/usr/local/bin:/usr/bin:/bin'),
       HOME: process.env.HOME || os.homedir(),
       TMPDIR: process.env.TMPDIR || os.tmpdir(),
       // Ensure Python can find system libraries
@@ -324,10 +328,12 @@ async function startBackend() {
     updateSplashStatus('Starting development server...');
     process.env.GEMINI_PATH = geminiPath;
 
-    // Set up proper environment for development backend
+    // Set up proper environment for development backend with full system access for MCP servers
     const devBackendEnv = {
       ...process.env,
-      PATH: `/usr/local/bin:/usr/bin:/bin${path.delimiter}${process.env.PATH || ''}`,
+      PATH: process.env.PATH || (process.platform === 'win32' 
+        ? 'C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem' 
+        : '/usr/local/bin:/usr/bin:/bin'),
       HOME: process.env.HOME || os.homedir(),
       TMPDIR: process.env.TMPDIR || os.tmpdir(),
       GEMINI_PATH: geminiPath,

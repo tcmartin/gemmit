@@ -153,10 +153,17 @@ async def stream_pipe(pipe, name, ws, buffer):
 async def run_gemini(prompt: str, work_dir: pathlib.Path, ws):
     # Use chat endpoint, drop code-assist '-a'
     cmd = [GEMINI_BIN, '-y', '-a', '-p', prompt, '-m', 'gemini-2.5-flash']
+    
+    # Debug: Log the environment for MCP server debugging
+    print(f"Running gemini-cli with PATH: {os.environ.get('PATH', 'NOT SET')}")
+    print(f"Working directory: {work_dir}")
+    print(f"Command: {' '.join(cmd)}")
+    
     proc = await asyncio.create_subprocess_exec(
         *cmd, cwd=str(work_dir),
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        stderr=asyncio.subprocess.PIPE,
+        env=os.environ  # Explicitly pass full environment for MCP server access
     )
     out_buf: list[str] = []
     await asyncio.gather(
