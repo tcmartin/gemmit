@@ -1,5 +1,5 @@
 import sys
-import asyncio, json, os, uuid, mimetypes, pathlib
+import asyncio, json, os, uuid, mimetypes, pathlib, time
 import websockets
 from aiohttp import web
 
@@ -118,8 +118,32 @@ PORT = int(os.getenv('PORT', 8000))
 HOST = os.getenv('HOST', '127.0.0.1')
 HOST = os.getenv('HOST', '127.0.0.1')
 
-# In-memory conversation storage
-conversations: dict[str, list[str]] = {}
+# Persistent conversation storage
+CONVERSATIONS_FILE = WORK_DIR / '.gemmit' / 'conversations.json'
+
+def load_conversations():
+    """Load conversations from persistent storage."""
+    if CONVERSATIONS_FILE.exists():
+        try:
+            with open(CONVERSATIONS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, PermissionError, OSError) as e:
+            print(f"Warning: Could not load conversations: {e}", file=sys.stderr)
+    return {}
+
+def save_conversations(conversations):
+    """Save conversations to persistent storage."""
+    try:
+        CONVERSATIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(CONVERSATIONS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(conversations, f, indent=2, ensure_ascii=False)
+    except (PermissionError, OSError) as e:
+        print(f"Warning: Could not save conversations: {e}", file=sys.stderr)
+
+# Load conversations on startup
+conversations: dict[str, list[str]] = load_conversations()
+startup_time = time.time()
+print(f"Backend started at {time.ctime(startup_time)}, loaded {len(conversations)} conversations", file=sys.stderr)
 
 # HTTP server: static files and health endpoint
 STATIC_ROOT = BASE_DIR / 'app'
@@ -206,11 +230,18 @@ async def ws_handler(ws, path=None):
         if not prompt:
             await ws.send(json.dumps({'error': 'prompt missing'}))
             continue
+        
+        print(f"Processing prompt for conversation {cid}, current conversations count: {len(conversations)}", file=sys.stderr)
         history = '\n'.join(conversations.get(cid, []))
+        print(f"Conversation {cid} has {len(conversations.get(cid, []))} previous messages", file=sys.stderr)
+        
         full_prompt = f"{prompt}\n\n[conversation history]\n{history}"
         rc, reply = await run_gemini(full_prompt, WORK_DIR, ws)
         if rc == 0:
             conversations.setdefault(cid, []).extend([f"User: {prompt}", f"Model: {reply}"])
+            # Persist conversations to disk
+            save_conversations(conversations)
+            print(f"Saved conversation {cid}, now has {len(conversations.get(cid, []))} messages", file=sys.stderr)
         await ws.send(json.dumps({'type': 'result', 'returncode': rc, 'conversationId': cid}))
 
 # Main entry point
