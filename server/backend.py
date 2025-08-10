@@ -24,6 +24,15 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # ─── Provision AI guidance docs into WORK_DIR/.gemmit ────────────
 import sys, shutil
 
+
+def _proc_group_kwargs():
+    if os.name == 'posix':
+        return {'preexec_fn': os.setsid}
+    elif os.name == 'nt':
+        # CREATE_NEW_PROCESS_GROUP
+        return {'creationflags': 0x00000200}
+    return {}
+
 def provision_guidance_docs():
     """Provision AI guidance documents to the .gemmit directory and .geminiignore to WORK_DIR with proper error handling."""
     try:
@@ -418,22 +427,26 @@ async def cancel_process(conversation_id: str):
         try:
             proc = active_processes[conversation_id]
             print(f"🛑 Force killing process for conversation {conversation_id} (PID: {proc.pid})", file=sys.stderr)
-            
-            # Try SIGTERM first for a cleaner shutdown
+
+            # TERM first
             try:
-                proc.terminate()
+                if os.name == 'posix':
+                    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                else:
+                    proc.terminate()
                 await asyncio.wait_for(proc.wait(), timeout=1.0)
                 print(f"✅ Process {conversation_id} terminated gracefully", file=sys.stderr)
             except asyncio.TimeoutError:
-                # If SIGTERM doesn't work quickly, use SIGKILL
-                print(f"🛑 SIGTERM timeout, using SIGKILL for {conversation_id}", file=sys.stderr)
-                proc.kill()
+                print(f"🛑 TERM timeout, escalating for {conversation_id}", file=sys.stderr)
+                if os.name == 'posix':
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                else:
+                    proc.kill()
                 try:
                     await asyncio.wait_for(proc.wait(), timeout=2.0)
                     print(f"✅ Process {conversation_id} killed immediately", file=sys.stderr)
                 except asyncio.TimeoutError:
                     print(f"⚠️ Process {conversation_id} didn't die after SIGKILL", file=sys.stderr)
-            
             success = True
         except Exception as e:
             print(f"❌ Error killing process {conversation_id}: {e}", file=sys.stderr)
@@ -464,8 +477,8 @@ async def run_gemini(prompt: str, work_dir: pathlib.Path, ws, conversation_id: s
         *cmd, cwd=str(work_dir),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=os.environ,  # Explicitly pass full environment for MCP server access
-        preexec_fn=os.setsid if hasattr(os, 'setsid') else None  # Create new process group on Unix
+        env=os.environ,
+        **_proc_group_kwargs(),   # <— NEW
     )
     
     # Track the process for cancellation
@@ -480,25 +493,34 @@ async def run_gemini(prompt: str, work_dir: pathlib.Path, ws, conversation_id: s
         await proc.wait()
         return proc.returncode, ''.join(out_buf)
     except asyncio.CancelledError:
-        # Process was cancelled
         print(f"Process {conversation_id} was cancelled, terminating...", file=sys.stderr)
         try:
-            # Send SIGINT first (like Ctrl+C)
-            proc.send_signal(signal.SIGINT)
+            if os.name == 'posix':
+                os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+            else:
+                # Requires creationflags=CREATE_NEW_PROCESS_GROUP
+                proc.send_signal(signal.CTRL_BREAK_EVENT)
             await asyncio.wait_for(proc.wait(), timeout=3.0)
         except asyncio.TimeoutError:
-            print(f"SIGINT timeout, sending SIGTERM to {conversation_id}", file=sys.stderr)
-            proc.terminate()
             try:
+                if os.name == 'posix':
+                    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                else:
+                    proc.terminate()
                 await asyncio.wait_for(proc.wait(), timeout=2.0)
             except asyncio.TimeoutError:
-                print(f"SIGTERM timeout, sending SIGKILL to {conversation_id}", file=sys.stderr)
-                proc.kill()
+                if os.name == 'posix':
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                else:
+                    proc.kill()
                 await proc.wait()
         except Exception as e:
             print(f"Error during cancellation: {e}", file=sys.stderr)
-        
-        await ws.send(json.dumps({'type': 'stream', 'stream': 'stderr', 'data': '\n[Process cancelled by user]\n'}))
+
+        try:
+            await ws.send(json.dumps({'type': 'stream', 'stream': 'stderr', 'data': '\n[Process cancelled by user]\n'}))
+        except Exception:
+            pass  # WS may be closed
         return -1, '[Process cancelled by user]'
     finally:
         # Clean up process tracking
@@ -636,47 +658,54 @@ async def ws_handler(ws, path=None):
             continue
         
         # Conversation prompt
+       # Conversation prompt
         prompt = data.get('prompt')
         cid = data.get('conversationId') or str(uuid.uuid4())
         if not prompt:
             await ws.send(json.dumps({'error': 'prompt missing'}))
             continue
-        
+
         print(f"Processing prompt for conversation {cid}, current conversations count: {len(conversations)}", file=sys.stderr)
         history = '\n'.join(conversations.get(cid, []))
         print(f"Conversation {cid} has {len(conversations.get(cid, []))} previous messages", file=sys.stderr)
-        
-        # Send status update
+
+        # Tell the UI we started
         await ws.send(json.dumps({'type': 'status', 'status': 'running', 'conversationId': cid}))
-        
-        # Create and track the task for cancellation
+
+        # Prepare the full prompt for the worker
         full_prompt = f"{prompt}\n\n[conversation history]\n{history}"
-        
+
         async def run_gemini_task():
             return await run_gemini(full_prompt, WORK_DIR, ws, cid)
-        
+
+        # START the task, but DO NOT AWAIT IT here (keep the WS loop responsive).
         task = asyncio.create_task(run_gemini_task())
         active_tasks[cid] = task
-        
-        try:
-            rc, reply = await task
-            if rc == 0:
-                conversations.setdefault(cid, []).extend([f"User: {prompt}", f"Model: {reply}"])
-                # Persist conversations to disk
-                save_conversations(conversations)
-                print(f"Saved conversation {cid}, now has {len(conversations.get(cid, []))} messages", file=sys.stderr)
-        except asyncio.CancelledError:
-            print(f"Task for conversation {cid} was cancelled", file=sys.stderr)
-            rc, reply = -1, "[Cancelled by user]"
-            await ws.send(json.dumps({'type': 'stream', 'stream': 'stderr', 'data': '\n[Cancelled by user]\n'}))
-        finally:
-            # Clean up task tracking
-            active_tasks.pop(cid, None)
-        
-        # Send completion status
-        await ws.send(json.dumps({'type': 'status', 'status': 'complete', 'conversationId': cid}))
-        await ws.send(json.dumps({'type': 'result', 'returncode': rc, 'conversationId': cid}))
 
+        async def _finalize(t: asyncio.Task, _cid=cid, _prompt=prompt):
+            rc, reply = -1, ""
+            try:
+                rc, reply = await t
+                if rc == 0:
+                    conversations.setdefault(_cid, []).extend([f"User: {_prompt}", f"Model: {reply}"])
+                    save_conversations(conversations)
+                    print(f"Saved conversation {_cid}, now has {len(conversations.get(_cid, []))} messages", file=sys.stderr)
+            except asyncio.CancelledError:
+                rc, reply = -1, "[Cancelled by user]"
+                try:
+                    await ws.send(json.dumps({'type': 'stream', 'stream': 'stderr', 'data': '\n[Cancelled by user]\n'}))
+                except Exception:
+                    pass  # WS may be closed
+            finally:
+                active_tasks.pop(_cid, None)
+                try:
+                    await ws.send(json.dumps({'type': 'status', 'status': 'complete', 'conversationId': _cid}))
+                    await ws.send(json.dumps({'type': 'result', 'returncode': rc, 'conversationId': _cid}))
+                except Exception:
+                    pass  # WS may be closed
+
+        asyncio.create_task(_finalize(task))
+        # Loop continues WITHOUT awaiting the task; we can now receive 'cancel' immediately.
 async def cleanup_processes():
     """Clean up all running processes"""
     print("Cleaning up processes...", file=sys.stderr)
