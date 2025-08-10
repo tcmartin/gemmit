@@ -25,7 +25,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 import sys, shutil
 
 def provision_guidance_docs():
-    """Provision AI guidance documents to the .gemmit directory with proper error handling."""
+    """Provision AI guidance documents to the .gemmit directory and .geminiignore to WORK_DIR with proper error handling."""
     try:
         config_dir = WORK_DIR / ".gemmit"
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -39,6 +39,7 @@ def provision_guidance_docs():
         print(f"Warning: Could not create .gemmit directory: {e}", file=sys.stderr)
         return
 
+    # Copy guidance documents to .gemmit directory
     for doc in ("ai_guidelines.md", "pocketflowguide.md"):
         src = BASE_DIR / doc
         dest = config_dir / doc
@@ -76,12 +77,43 @@ def provision_guidance_docs():
                 if sys.platform == "darwin" and getattr(sys, "frozen", False):
                     print(f"Note: If running as compiled app on macOS, you may need to grant file access permissions", file=sys.stderr)
 
+    # Copy .geminiignore directly to WORK_DIR (Gemmit_Projects folder)
+    geminiignore_src = BASE_DIR / ".geminiignore"
+    geminiignore_dest = WORK_DIR / ".geminiignore"
+    
+    if geminiignore_src.exists():
+        should_copy_ignore = False
+        if not geminiignore_dest.exists():
+            should_copy_ignore = True
+        else:
+            try:
+                # Compare modification times
+                if geminiignore_src.stat().st_mtime > geminiignore_dest.stat().st_mtime:
+                    should_copy_ignore = True
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Could not check file times for .geminiignore: {e}", file=sys.stderr)
+                # If we can't check times, assume we should copy
+                should_copy_ignore = True
+        
+        if should_copy_ignore:
+            try:
+                # Use copy2 to preserve metadata, fallback to copy if that fails
+                try:
+                    shutil.copy2(geminiignore_src, geminiignore_dest)
+                except (OSError, PermissionError):
+                    shutil.copy(geminiignore_src, geminiignore_dest)
+                print(f"Copied .geminiignore to {WORK_DIR}")
+            except Exception as e:
+                print(f"Warning: could not copy .geminiignore to {WORK_DIR}: {e}", file=sys.stderr)
+    else:
+        print(f"Warning: .geminiignore source file not found at {geminiignore_src}", file=sys.stderr)
+
 # Provision the guidance documents
 provision_guidance_docs()
 
 # Fallback: If files still don't exist, create minimal versions
 def create_fallback_docs():
-    """Create minimal fallback versions of guidance docs if copying failed."""
+    """Create minimal fallback versions of guidance docs and .geminiignore if copying failed."""
     config_dir = WORK_DIR / ".gemmit"
     
     fallback_content = {
@@ -104,10 +136,36 @@ Note: This is a fallback version - the full guide may not have been copied.
             except Exception as e:
                 print(f"Warning: Could not create fallback {doc}: {e}", file=sys.stderr)
 
+    # Create fallback .geminiignore in WORK_DIR if it doesn't exist
+    geminiignore_dest = WORK_DIR / ".geminiignore"
+    if not geminiignore_dest.exists():
+        fallback_geminiignore = """# Gemini Ignore File
+# This is a fallback .geminiignore - the full version may not have been copied.
+
+# Common files to ignore
+.DS_Store
+Thumbs.db
+.git/
+node_modules/
+__pycache__/
+*.log
+.env
+.env.*
+!.env.example
+"""
+        try:
+            geminiignore_dest.write_text(fallback_geminiignore)
+            print(f"Created fallback .geminiignore in {WORK_DIR}")
+        except Exception as e:
+            print(f"Warning: Could not create fallback .geminiignore: {e}", file=sys.stderr)
+
 # Only create fallbacks if the main provisioning had issues
 try:
     config_dir = WORK_DIR / ".gemmit"
-    if not (config_dir / "ai_guidelines.md").exists() or not (config_dir / "pocketflowguide.md").exists():
+    geminiignore_path = WORK_DIR / ".geminiignore"
+    if (not (config_dir / "ai_guidelines.md").exists() or 
+        not (config_dir / "pocketflowguide.md").exists() or 
+        not geminiignore_path.exists()):
         create_fallback_docs()
 except Exception:
     pass  # Silently fail fallback creation
