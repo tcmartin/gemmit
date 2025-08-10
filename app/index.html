@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -8,10 +9,7 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-    rel="stylesheet"
-  />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <style>
     :root {
@@ -27,8 +25,17 @@
       --radius-xl: 2rem;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
     body {
       font-family: 'Inter', sans-serif;
       background: var(--lovable-gradient);
@@ -36,7 +43,11 @@
       display: flex;
       flex-direction: column;
     }
-    a { text-decoration: none; color: inherit; }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
 
     header {
       display: flex;
@@ -44,14 +55,23 @@
       align-items: center;
       padding: 1rem 2rem;
     }
-    .logo { font-weight: 800; font-size: 1.25rem; }
+
+    .logo {
+      font-weight: 800;
+      font-size: 1.25rem;
+    }
+
     nav a {
       margin: 0 1rem;
       font-weight: 500;
       color: var(--text-muted);
       transition: color .2s;
     }
-    nav a:hover { color: var(--text); }
+
+    nav a:hover {
+      color: var(--text);
+    }
+
     .actions a {
       margin-left: 1rem;
       padding: .55rem 1.25rem;
@@ -59,8 +79,15 @@
       font-weight: 600;
       display: inline-block;
     }
-    .btn-outline { border: 1px solid var(--surface-border); }
-    .btn-primary { background: #fff; color: #000; }
+
+    .btn-outline {
+      border: 1px solid var(--surface-border);
+    }
+
+    .btn-primary {
+      background: #fff;
+      color: #000;
+    }
 
     main {
       flex: 1;
@@ -71,18 +98,21 @@
       text-align: center;
       padding: 2rem 1rem;
     }
+
     h1 {
-      font-size: clamp(2.5rem,6vw,4rem);
+      font-size: clamp(2.5rem, 6vw, 4rem);
       font-weight: 800;
       line-height: 1.1;
       margin-bottom: .5rem;
     }
+
     h1 .emoji {
       display: inline-flex;
       width: 1em;
       height: 1em;
       vertical-align: text-bottom;
     }
+
     .tagline {
       font-size: 1.25rem;
       color: var(--text-muted);
@@ -100,6 +130,7 @@
       padding: 1rem;
       gap: .75rem;
     }
+
     .chat-box textarea {
       flex: 1;
       background: transparent;
@@ -108,8 +139,17 @@
       color: var(--text);
       font-size: 1rem;
       min-height: 2.5em;
+      max-height: 200px;
       outline: none;
+      line-height: 1.4;
+      font-family: inherit;
+      overflow-y: auto;
     }
+
+    .chat-box textarea::placeholder {
+      color: var(--text-muted);
+    }
+
     .chat-box button {
       background: transparent;
       border: none;
@@ -118,7 +158,10 @@
       padding: .5rem;
       transition: transform .15s;
     }
-    .chat-box button:hover { transform: translateY(-3px); }
+
+    .chat-box button:hover {
+      transform: translateY(-3px);
+    }
 
     .presets {
       margin-top: 1.5rem;
@@ -127,6 +170,7 @@
       gap: .75rem;
       justify-content: center;
     }
+
     .pill {
       padding: .5rem .85rem;
       border: 1px solid var(--surface-border);
@@ -134,11 +178,20 @@
       font-size: .875rem;
       color: var(--text-muted);
       cursor: pointer;
-      transition: background .2s, color .2s;
+      transition: all .2s ease;
+      user-select: none;
     }
+
     .pill:hover {
       background: var(--surface-border);
       color: var(--text);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .pill:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
     }
 
     footer {
@@ -152,13 +205,17 @@
     body::before {
       content: '';
       position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       pointer-events: none;
       background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAITrMncAAAAASUVORK5CYII=") repeat;
       opacity: .05;
     }
   </style>
 </head>
+
 <body>
   <header>
     <div class="logo">Gemmit (Open Source)</div>
@@ -173,61 +230,232 @@
 
   <main>
     <h1>
-      Build something 
+      Build something
       <span class="emoji">
         <!-- Rainbow Gem SVG -->
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <linearGradient id="rainbow" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#ff0000"/>
-              <stop offset="20%" stop-color="#ffa500"/>
-              <stop offset="40%" stop-color="#ffff00"/>
-              <stop offset="60%" stop-color="#00ff00"/>
-              <stop offset="80%" stop-color="#0000ff"/>
-              <stop offset="100%" stop-color="#8b00ff"/>
+              <stop offset="0%" stop-color="#ff0000" />
+              <stop offset="20%" stop-color="#ffa500" />
+              <stop offset="40%" stop-color="#ffff00" />
+              <stop offset="60%" stop-color="#00ff00" />
+              <stop offset="80%" stop-color="#0000ff" />
+              <stop offset="100%" stop-color="#8b00ff" />
             </linearGradient>
           </defs>
-          <path fill="url(#rainbow)" d="M12 2L2 8l4 12h12l4-12L12 2z"/>
+          <path fill="url(#rainbow)" d="M12 2L2 8l4 12h12l4-12L12 2z" />
         </svg>
-      </span> 
+      </span>
       Gemmit
     </h1>
     <div class="tagline">An open-source vibe coding tool created with love by the community</div>
 
     <div class="chat-box">
       <button title="Attach file">📎</button>
-      <textarea placeholder="Ask Gemmit to create a website for …"></textarea>
+      <textarea placeholder="Describe what you want to build, or click a preset below for expert prompts..."></textarea>
       <button class="send" title="Send">➤</button>
     </div>
 
     <div class="presets">
-      <div class="pill">Create a financial app</div>
-      <div class="pill">Design a directory site</div>
-      <div class="pill">Make a landing page</div>
-      <div class="pill">Generate a CRM</div>
-      <div class="pill">Build a mobile app</div>
+      <div class="pill" data-prompt="Create a comprehensive personal finance tracking web application with the following features:
+
+1. **Dashboard Overview**: Display total balance, monthly income/expenses, spending categories with charts
+2. **Transaction Management**: Add/edit/delete transactions with categories, dates, descriptions, and amounts
+3. **Budget Planning**: Set monthly budgets per category with progress bars and alerts when approaching limits
+4. **Reports & Analytics**: Generate monthly/yearly reports with interactive charts showing spending trends
+5. **Account Management**: Support multiple accounts (checking, savings, credit cards) with balance tracking
+
+Technical Requirements:
+- Use modern HTML5, CSS3 with responsive design (mobile-first)
+- Vanilla JavaScript or lightweight framework for interactivity
+- Local storage for data persistence (no backend required)
+- Clean, professional UI with dark/light theme toggle
+- Export data to CSV functionality
+- Input validation and error handling
+
+Create all necessary files: index.html, styles.css, script.js. Include sample data and make it fully functional.">
+        Create a financial app</div>
+      <div class="pill" data-prompt="Build a modern business directory website with advanced search and filtering capabilities:
+
+1. **Homepage**: Hero section, featured businesses, search bar, category grid
+2. **Business Listings**: Grid/list view with photos, ratings, contact info, hours, description
+3. **Advanced Search**: Filter by category, location, rating, price range, hours, features
+4. **Business Detail Pages**: Full business profile with gallery, reviews, map, contact form
+5. **User Reviews**: Star ratings, written reviews, helpful votes, review moderation
+6. **Interactive Map**: Show businesses on map with clustering, custom markers, directions
+
+Features:
+- Responsive design that works on all devices
+- Fast search with autocomplete suggestions
+- Sort by relevance, rating, distance, alphabetical
+- Business owner dashboard to manage listings
+- Contact forms and click-to-call functionality
+- Social media integration
+- SEO-optimized structure
+
+Technical Stack:
+- Modern HTML5/CSS3 with CSS Grid and Flexbox
+- JavaScript for interactivity and API calls
+- JSON data structure for business listings
+- Geolocation API for location-based features
+- Local storage for user preferences
+
+Include sample business data (restaurants, shops, services) and make it fully functional.">Design a directory site
+      </div>
+      <div class="pill" data-prompt="Create a high-converting landing page for a SaaS product with modern design and optimization:
+
+1. **Hero Section**: Compelling headline, subheadline, hero image/video, primary CTA button
+2. **Value Proposition**: Clear benefits, problem/solution fit, unique selling points
+3. **Social Proof**: Customer testimonials, logos, user count, ratings/reviews
+4. **Feature Showcase**: Key features with icons, descriptions, and screenshots
+5. **Pricing Section**: Clear pricing tiers, feature comparison, popular plan highlight
+6. **FAQ Section**: Address common objections and questions
+7. **Final CTA**: Strong call-to-action with urgency/scarcity elements
+
+Design Requirements:
+- Modern, clean design with consistent branding
+- Mobile-first responsive design
+- Fast loading with optimized images
+- Smooth scrolling and micro-interactions
+- A/B testable elements
+- Conversion tracking setup
+
+Technical Implementation:
+- Semantic HTML5 structure for SEO
+- CSS3 with animations and transitions
+- JavaScript for interactive elements
+- Form validation and submission handling
+- Analytics integration points
+- Performance optimized (lazy loading, minified assets)
+
+Include realistic content for a project management SaaS tool and make it conversion-ready.">Make a landing page</div>
+      <div class="pill" data-prompt="Develop a comprehensive Customer Relationship Management (CRM) system with full CRUD functionality:
+
+1. **Dashboard**: Key metrics, recent activities, pipeline overview, upcoming tasks
+2. **Contact Management**: Add/edit contacts with detailed profiles, communication history, tags
+3. **Company Management**: Organize contacts by companies, track company details and relationships
+4. **Deal Pipeline**: Visual pipeline with drag-and-drop stages, deal values, probability tracking
+5. **Task Management**: Create tasks, set reminders, assign to team members, track completion
+6. **Communication Log**: Email integration, call logs, meeting notes, document attachments
+7. **Reporting**: Sales reports, activity reports, conversion metrics, custom date ranges
+
+Core Features:
+- Advanced search and filtering across all data
+- Import/export functionality (CSV, Excel)
+- User roles and permissions system
+- Activity timeline for each contact/company
+- Email templates and bulk email functionality
+- Calendar integration for meetings and follow-ups
+- Mobile-responsive interface
+
+Technical Architecture:
+- Modern web application using HTML5, CSS3, JavaScript
+- Local storage with JSON data structure
+- Modular JavaScript architecture with ES6+ features
+- CSS Grid and Flexbox for responsive layouts
+- Form validation and data sanitization
+- Print-friendly reports and export functionality
+
+Create a fully functional CRM with sample data (contacts, companies, deals) and realistic business workflows.">Generate
+        a CRM</div>
+      <div class="pill"
+        data-prompt="Build a Progressive Web App (PWA) for task management that works offline and feels native:
+
+1. **Core Functionality**:
+   - Create, edit, delete, and organize tasks
+   - Set due dates, priorities, and categories
+   - Mark tasks as complete with progress tracking
+   - Search and filter tasks by various criteria
+
+2. **Advanced Features**:
+   - Drag-and-drop task reordering
+   - Subtasks and task dependencies
+   - Time tracking and productivity analytics
+   - Recurring tasks and reminders
+   - File attachments and notes
+
+3. **PWA Requirements**:
+   - Service worker for offline functionality
+   - App manifest for 'Add to Home Screen'
+   - Responsive design that adapts to mobile screens
+   - Touch-friendly interface with swipe gestures
+   - Push notifications for reminders
+   - Background sync when connection returns
+
+4. **User Experience**:
+   - Smooth animations and transitions
+   - Dark/light theme toggle
+   - Keyboard shortcuts for power users
+   - Undo/redo functionality
+   - Data export and backup options
+
+Technical Implementation:
+- HTML5 with semantic structure
+- CSS3 with CSS Custom Properties and modern layouts
+- Vanilla JavaScript with ES6+ features
+- IndexedDB for offline data storage
+- Service Worker for caching and background sync
+- Web App Manifest for native app experience
+- Touch and gesture event handling
+
+Create all necessary files including service worker, manifest, and make it installable as a PWA with full offline capability.">Build a
+        mobile app</div>
     </div>
   </main>
 
   <footer>
-    Open Source on <a href="https://github.com/tcmartin/gemmit" target="_blank">GitHub</a> | © 2025 Gemmit. All rights reserved.
+    Open Source on <a href="https://github.com/tcmartin/gemmit" target="_blank">GitHub</a> | © 2025 Gemmit. All rights
+    reserved.
   </footer>
 
   <script>
     // navigate to chat.html with the prompt in the querystring
     const textarea = document.querySelector('.chat-box textarea');
     const sendBtn = document.querySelector('.chat-box .send');
+    const pills = document.querySelectorAll('.pill');
+
+    // Handle pill clicks to fill textarea with expert prompts
+    pills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        const prompt = pill.getAttribute('data-prompt');
+        if (prompt) {
+          textarea.value = prompt;
+          // Auto-focus the textarea and scroll to show the content
+          textarea.focus();
+          textarea.scrollTop = 0;
+          // Add visual feedback
+          pill.style.background = 'var(--surface-border)';
+          pill.style.color = 'var(--text)';
+          setTimeout(() => {
+            pill.style.background = '';
+            pill.style.color = '';
+          }, 200);
+        }
+      });
+    });
+
+    // Send button functionality
     sendBtn.addEventListener('click', () => {
       const prompt = textarea.value.trim();
       if (!prompt) return;
       window.location.href = `chat.html?prompt=${encodeURIComponent(prompt)}`;
     });
+
+    // Enter key to send (but allow Shift+Enter for new lines)
     textarea.addEventListener('keypress', e => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendBtn.click();
       }
     });
+
+    // Auto-resize textarea as user types
+    textarea.addEventListener('input', () => {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    });
   </script>
 </body>
+
 </html>

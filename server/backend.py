@@ -205,6 +205,7 @@ print(f"Backend started at {time.ctime(startup_time)}, loaded {len(conversations
 
 # Process tracking for cancellation
 active_processes: dict[str, asyncio.subprocess.Process] = {}
+active_tasks: dict[str, asyncio.Task] = {}  # Track the actual tasks for cancellation
 frontend_processes: dict[int, asyncio.subprocess.Process] = {}
 
 # HTTP server: static files and health endpoint
@@ -243,6 +244,21 @@ async def stream_pipe(pipe, name, ws, buffer):
         # Handle other errors gracefully
         print(f"Error in stream_pipe: {e}", file=sys.stderr)
 
+async def monitor_frontend_process(port: int, proc: asyncio.subprocess.Process):
+    """Monitor a frontend process and clean up when it exits"""
+    try:
+        await proc.wait()
+        print(f"Frontend server on port {port} exited with code {proc.returncode}", file=sys.stderr)
+        if proc.returncode != 0:
+            stdout, stderr = await proc.communicate()
+            print(f"Frontend server error output:", file=sys.stderr)
+            print(f"stdout: {stdout.decode()}", file=sys.stderr)
+            print(f"stderr: {stderr.decode()}", file=sys.stderr)
+    except Exception as e:
+        print(f"Error monitoring frontend process on port {port}: {e}", file=sys.stderr)
+    finally:
+        frontend_processes.pop(port, None)
+
 async def start_frontend_server(port: int, work_dir: pathlib.Path):
     """Start a frontend server using npx serve (or gemmit-npx in production)"""
     try:
@@ -258,14 +274,15 @@ async def start_frontend_server(port: int, work_dir: pathlib.Path):
                 del frontend_processes[port]
         
         # Try gemmit-npx first (for production), fallback to npx (for development)
-        # Add --no-cache flag to prevent caching issues
+        # Use -s flag for single-page apps, -C for CORS, --no-etag to prevent caching
         commands_to_try = [
-            ['gemmit-npx', 'serve', '-p', str(port), '--no-cache'],
-            ['npx', 'serve', '-p', str(port), '--no-cache']
+            ['gemmit-npx', 'serve', '-s', '-C', '--no-etag', '-p', str(port)],
+            ['npx', 'serve', '-s', '-C', '--no-etag', '-p', str(port)]
         ]
         
         for cmd in commands_to_try:
             try:
+                print(f"Attempting to start server with command: {' '.join(cmd)}", file=sys.stderr)
                 proc = await asyncio.create_subprocess_exec(
                     *cmd, cwd=str(work_dir),
                     stdout=asyncio.subprocess.PIPE,
@@ -273,12 +290,48 @@ async def start_frontend_server(port: int, work_dir: pathlib.Path):
                     env=os.environ
                 )
                 
-                frontend_processes[port] = proc
-                print(f"Started frontend server on port {port} in {work_dir} using {cmd[0]}")
-                return True
+                # Wait a moment to see if the process starts successfully
+                await asyncio.sleep(1.0)
+                
+                # Check if process is still running
+                if proc.returncode is None:
+                    frontend_processes[port] = proc
+                    print(f"Started frontend server on port {port} in {work_dir} using {cmd[0]}")
+                    
+                    # Start a task to monitor the process
+                    asyncio.create_task(monitor_frontend_process(port, proc))
+                    
+                    # Wait a bit more and test if the server is actually responding
+                    await asyncio.sleep(1.0)
+                    
+                    # Try to connect to the server to verify it's working
+                    try:
+                        import aiohttp
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(f'http://localhost:{port}', timeout=aiohttp.ClientTimeout(total=2)) as response:
+                                if response.status < 500:  # Any response except server error is good
+                                    print(f"✅ Frontend server on port {port} is responding", file=sys.stderr)
+                                    return True
+                                else:
+                                    print(f"⚠️ Frontend server on port {port} returned status {response.status}", file=sys.stderr)
+                                    return True  # Still consider it started
+                    except Exception as e:
+                        print(f"⚠️ Could not verify server on port {port}: {e}", file=sys.stderr)
+                        # Still return True since the process is running
+                        return True
+                else:
+                    # Process exited immediately, read error output
+                    stdout, stderr = await proc.communicate()
+                    print(f"Command {cmd[0]} failed immediately:", file=sys.stderr)
+                    print(f"stdout: {stdout.decode()}", file=sys.stderr)
+                    print(f"stderr: {stderr.decode()}", file=sys.stderr)
+                    continue
                 
             except FileNotFoundError:
                 print(f"Command {cmd[0]} not found, trying next option...")
+                continue
+            except Exception as e:
+                print(f"Error starting {cmd[0]}: {e}", file=sys.stderr)
                 continue
         
         print("No suitable serve command found (tried gemmit-npx and npx)", file=sys.stderr)
@@ -290,28 +343,51 @@ async def start_frontend_server(port: int, work_dir: pathlib.Path):
 
 async def cancel_process(conversation_id: str):
     """Cancel a running gemini process (equivalent to Ctrl+C)"""
+    success = False
+    
+    # Cancel the asyncio task first
+    if conversation_id in active_tasks:
+        try:
+            task = active_tasks[conversation_id]
+            print(f"Cancelling task for conversation {conversation_id}", file=sys.stderr)
+            task.cancel()
+            success = True
+        except Exception as e:
+            print(f"Error cancelling task {conversation_id}: {e}", file=sys.stderr)
+    
+    # Also try to kill the process directly
     if conversation_id in active_processes:
         try:
             proc = active_processes[conversation_id]
+            print(f"Sending SIGINT to process {conversation_id}", file=sys.stderr)
             # Send SIGINT first (equivalent to Ctrl+C)
             proc.send_signal(signal.SIGINT)
             try:
-                await asyncio.wait_for(proc.wait(), timeout=3.0)
+                await asyncio.wait_for(proc.wait(), timeout=1.0)
+                print(f"Process {conversation_id} terminated with SIGINT", file=sys.stderr)
             except asyncio.TimeoutError:
+                print(f"SIGINT timeout, sending SIGTERM to {conversation_id}", file=sys.stderr)
                 # If SIGINT doesn't work, try SIGTERM
                 proc.terminate()
                 try:
-                    await asyncio.wait_for(proc.wait(), timeout=2.0)
+                    await asyncio.wait_for(proc.wait(), timeout=1.0)
+                    print(f"Process {conversation_id} terminated with SIGTERM", file=sys.stderr)
                 except asyncio.TimeoutError:
+                    print(f"SIGTERM timeout, sending SIGKILL to {conversation_id}", file=sys.stderr)
                     # Last resort: SIGKILL
                     proc.kill()
                     await proc.wait()
+                    print(f"Process {conversation_id} killed with SIGKILL", file=sys.stderr)
+            success = True
         except Exception as e:
             print(f"Error cancelling process {conversation_id}: {e}", file=sys.stderr)
         finally:
             active_processes.pop(conversation_id, None)
-        return True
-    return False
+    
+    # Clean up task tracking
+    active_tasks.pop(conversation_id, None)
+    
+    return success
 
 async def run_gemini(prompt: str, work_dir: pathlib.Path, ws, conversation_id: str):
     # Use chat endpoint, drop code-assist '-a'
@@ -429,6 +505,7 @@ async def ws_handler(ws, path=None):
             await ws.send(json.dumps({
                 'type': 'status_info',
                 'active_processes': list(active_processes.keys()),
+                'active_tasks': list(active_tasks.keys()),
                 'frontend_processes': list(frontend_processes.keys())
             }))
             continue
@@ -447,13 +524,29 @@ async def ws_handler(ws, path=None):
         # Send status update
         await ws.send(json.dumps({'type': 'status', 'status': 'running', 'conversationId': cid}))
         
+        # Create and track the task for cancellation
         full_prompt = f"{prompt}\n\n[conversation history]\n{history}"
-        rc, reply = await run_gemini(full_prompt, WORK_DIR, ws, cid)
-        if rc == 0:
-            conversations.setdefault(cid, []).extend([f"User: {prompt}", f"Model: {reply}"])
-            # Persist conversations to disk
-            save_conversations(conversations)
-            print(f"Saved conversation {cid}, now has {len(conversations.get(cid, []))} messages", file=sys.stderr)
+        
+        async def run_gemini_task():
+            return await run_gemini(full_prompt, WORK_DIR, ws, cid)
+        
+        task = asyncio.create_task(run_gemini_task())
+        active_tasks[cid] = task
+        
+        try:
+            rc, reply = await task
+            if rc == 0:
+                conversations.setdefault(cid, []).extend([f"User: {prompt}", f"Model: {reply}"])
+                # Persist conversations to disk
+                save_conversations(conversations)
+                print(f"Saved conversation {cid}, now has {len(conversations.get(cid, []))} messages", file=sys.stderr)
+        except asyncio.CancelledError:
+            print(f"Task for conversation {cid} was cancelled", file=sys.stderr)
+            rc, reply = -1, "[Cancelled by user]"
+            await ws.send(json.dumps({'type': 'stream', 'stream': 'stderr', 'data': '\n[Cancelled by user]\n'}))
+        finally:
+            # Clean up task tracking
+            active_tasks.pop(cid, None)
         
         # Send completion status
         await ws.send(json.dumps({'type': 'status', 'status': 'complete', 'conversationId': cid}))
@@ -462,6 +555,14 @@ async def ws_handler(ws, path=None):
 async def cleanup_processes():
     """Clean up all running processes"""
     print("Cleaning up processes...", file=sys.stderr)
+    
+    # Cancel all active tasks
+    for cid, task in list(active_tasks.items()):
+        try:
+            task.cancel()
+            await asyncio.sleep(0.1)  # Give tasks a moment to cancel
+        except Exception as e:
+            print(f"Error cancelling task {cid}: {e}", file=sys.stderr)
     
     # Kill all active gemini processes
     for cid, proc in list(active_processes.items()):

@@ -80,6 +80,7 @@
         <input type="number" id="preview-port-display" disabled />
         <button class="btn-sm btn-primary" id="reload-preview">Reload</button>
         <button class="btn-sm" id="hard-refresh">Hard Refresh</button>
+        <button class="btn-sm" id="debug-status">Debug</button>
       </div>
       <iframe id="preview-frame" class="preview-frame"></iframe>
       <div id="preview-error" class="preview-error"></div>
@@ -128,6 +129,9 @@
         appendStatus(msg.message);
         setProcessingState(false);
       }
+      if (msg.type === 'status_info') {
+        appendStatus(`Debug: Active processes: ${msg.active_processes.length}, Active tasks: ${msg.active_tasks.length}, Frontend processes: ${msg.frontend_processes.length}`);
+      }
     };
     socket.onclose = () => console.log('Socket closed');
 
@@ -142,6 +146,7 @@
     const portDisplay = document.getElementById('preview-port-display');
     const reloadBtn = document.getElementById('reload-preview');
     const hardRefreshBtn = document.getElementById('hard-refresh');
+    const debugBtn = document.getElementById('debug-status');
     const previewFrame = document.getElementById('preview-frame');
     const startFrontendBtn = document.getElementById('start-frontend');
     
@@ -172,6 +177,11 @@
       // Force a complete reload by clearing the src first
       previewFrame.src = 'about:blank';
       setTimeout(() => loadPreview(), 100);
+    });
+    debugBtn.addEventListener('click', () => {
+      socket.send(JSON.stringify({
+        command: 'status'
+      }));
     });
     loadPreview();
 
