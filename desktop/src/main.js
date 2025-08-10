@@ -559,17 +559,45 @@ app.whenReady().then(async () => {
   }
 });
 
-app.on('before-quit', () => {
-  console.log('App is quitting, cleaning up processes...');
+// Cleanup function to kill backend process
+function cleanupBackend() {
   if (backendProc?.pid) {
     console.log(`Killing backend process ${backendProc.pid}`);
-    kill(backendProc.pid, 'SIGTERM');
-    // Give it a moment, then force kill if needed
+    try {
+      // Try SIGTERM first
+      kill(backendProc.pid, 'SIGTERM');
+      
+      // Wait a bit, then force kill if still running
+      setTimeout(() => {
+        try {
+          // Check if process is still running by sending signal 0
+          kill(backendProc.pid, 0);
+          console.log(`Force killing backend process ${backendProc.pid}`);
+          kill(backendProc.pid, 'SIGKILL');
+        } catch (e) {
+          // Process already dead, which is what we want
+          console.log('Backend process already terminated');
+        }
+      }, 1000);
+    } catch (e) {
+      console.log('Backend process already terminated or error:', e.message);
+    }
+  }
+}
+
+let isQuitting = false;
+
+app.on('before-quit', (event) => {
+  if (!isQuitting) {
+    console.log('App is quitting, cleaning up processes...');
+    isQuitting = true;
+    event.preventDefault(); // Prevent immediate quit
+    
+    cleanupBackend();
+    
+    // Give cleanup time to complete, then quit for real
     setTimeout(() => {
-      if (backendProc?.pid) {
-        console.log(`Force killing backend process ${backendProc.pid}`);
-        kill(backendProc.pid, 'SIGKILL');
-      }
+      app.exit(0);
     }, 2000);
   }
 });
@@ -580,25 +608,39 @@ app.on('window-all-closed', () => {
   }
 });
 
-// Handle unexpected exits
+// Handle unexpected exits - use synchronous cleanup
 process.on('exit', () => {
   if (backendProc?.pid) {
-    kill(backendProc.pid, 'SIGKILL');
+    try {
+      kill(backendProc.pid, 'SIGKILL');
+      console.log('Force killed backend process on exit');
+    } catch (e) {
+      console.log('Backend process cleanup on exit:', e.message);
+    }
   }
 });
 
 process.on('SIGINT', () => {
   console.log('Received SIGINT, cleaning up...');
-  if (backendProc?.pid) {
-    kill(backendProc.pid, 'SIGTERM');
-  }
-  app.quit();
+  cleanupBackend();
+  setTimeout(() => process.exit(0), 1500);
 });
 
 process.on('SIGTERM', () => {
   console.log('Received SIGTERM, cleaning up...');
-  if (backendProc?.pid) {
-    kill(backendProc.pid, 'SIGTERM');
-  }
-  app.quit();
+  cleanupBackend();
+  setTimeout(() => process.exit(0), 1500);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  cleanupBackend();
+  setTimeout(() => process.exit(1), 1000);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled rejection at:', promise, 'reason:', reason);
+  cleanupBackend();
+  setTimeout(() => process.exit(1), 1000);
 });

@@ -39,6 +39,8 @@
     .chat-input .row-actions { display:flex; justify-content:space-between; gap:.5rem; }
     .btn-cancel { background:var(--surface-300); border:1px solid #ff6b6b; color:#ff6b6b; }
     .btn-cancel:disabled { opacity:0.5; cursor:not-allowed; }
+    .btn-nav { width:2rem; height:2rem; display:flex; align-items:center; justify-content:center; font-weight:bold; }
+    .btn-nav:disabled { opacity:0.3; cursor:not-allowed; }
     .loading-indicator { display:none; align-items:center; gap:.5rem; color:var(--text-muted); font-size:.8rem; }
     .loading-indicator.active { display:flex; }
     .spinner { width:12px; height:12px; border:2px solid var(--surface-border); border-top:2px solid var(--brand-purple); border-radius:50%; animation:spin 1s linear infinite; }
@@ -53,7 +55,10 @@
 <body>
   <header class="topbar">
     <div class="topbar-left"><span>Gemmit Builder</span></div>
-    <div class="topbar-right"><button class="btn-sm btn-primary" id="start-frontend">Start Frontend</button></div>
+    <div class="topbar-right">
+      <button class="btn-sm btn-primary" id="start-frontend">Start Frontend</button>
+      <button class="btn-sm btn-cancel" id="stop-frontend">Stop Server</button>
+    </div>
   </header>
 
   <div class="workspace">
@@ -76,13 +81,18 @@
 
     <section class="panel-preview">
       <div class="preview-header">
+        <button class="btn-sm btn-nav" id="back-btn" title="Go Back">←</button>
+        <button class="btn-sm btn-nav" id="forward-btn" title="Go Forward">→</button>
         <label>Preview Port:</label>
         <input type="number" id="preview-port-display" disabled />
         <button class="btn-sm btn-primary" id="reload-preview">Reload</button>
         <button class="btn-sm" id="hard-refresh">Hard Refresh</button>
         <button class="btn-sm" id="debug-status">Debug</button>
+        <button class="btn-sm" id="test-html">Test HTML</button>
       </div>
-      <iframe id="preview-frame" class="preview-frame"></iframe>
+      <iframe id="preview-frame" class="preview-frame" 
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+              loading="eager"></iframe>
       <div id="preview-error" class="preview-error"></div>
     </section>
   </div>
@@ -120,7 +130,7 @@
           // Reload preview after a longer delay to let server fully start
           appendStatus('Waiting for server to be ready...');
           setTimeout(() => {
-            loadPreview();
+            loadPreview(false); // Don't cache bust when server starts
             appendStatus('Preview reloaded');
           }, 2000);
         }
@@ -131,6 +141,9 @@
       }
       if (msg.type === 'status_info') {
         appendStatus(`Debug: Active processes: ${msg.active_processes.length}, Active tasks: ${msg.active_tasks.length}, Frontend processes: ${msg.frontend_processes.length}`);
+      }
+      if (msg.type === 'frontend_result' && msg.message.includes('stopped')) {
+        appendStatus(msg.message);
       }
     };
     socket.onclose = () => console.log('Socket closed');
@@ -147,8 +160,12 @@
     const reloadBtn = document.getElementById('reload-preview');
     const hardRefreshBtn = document.getElementById('hard-refresh');
     const debugBtn = document.getElementById('debug-status');
+    const testHtmlBtn = document.getElementById('test-html');
+    const backBtn = document.getElementById('back-btn');
+    const forwardBtn = document.getElementById('forward-btn');
     const previewFrame = document.getElementById('preview-frame');
     const startFrontendBtn = document.getElementById('start-frontend');
+    const stopFrontendBtn = document.getElementById('stop-frontend');
     
     // State tracking
     let isProcessing = false;
@@ -165,24 +182,96 @@
     // Initialize inputs
     portInput.value = cfg.previewPort || 5002;
     outputDirInput.value = cfg.generationsDir || '';
-    function loadPreview() {
+    function loadPreview(forceCacheBust = false) {
       const p = portInput.value;
       portDisplay.value = p;
-      // Add cache-busting parameter to prevent caching issues
-      const timestamp = Date.now();
-      previewFrame.src = `http://localhost:${p}?_t=${timestamp}`;
+      
+      let url = `http://localhost:${p}`;
+      
+      // Only add cache-busting when explicitly requested (for reloads)
+      if (forceCacheBust) {
+        const timestamp = Date.now();
+        url += `?_cb=${timestamp}`;
+      }
+      
+      previewFrame.src = url;
+      
+      // Add error handling for iframe load
+      previewFrame.onload = () => {
+        console.log(`Preview loaded: ${url}`);
+      };
+      
+      previewFrame.onerror = (e) => {
+        console.error(`Preview load error: ${e}`);
+        appendStatus(`Failed to load preview from ${url}`);
+      };
     }
-    reloadBtn.addEventListener('click', loadPreview);
+    reloadBtn.addEventListener('click', () => loadPreview(true)); // Force cache bust on reload
     hardRefreshBtn.addEventListener('click', () => {
       // Force a complete reload by clearing the src first
       previewFrame.src = 'about:blank';
-      setTimeout(() => loadPreview(), 100);
+      setTimeout(() => loadPreview(true), 100); // Force cache bust on hard refresh
     });
     debugBtn.addEventListener('click', () => {
       socket.send(JSON.stringify({
         command: 'status'
       }));
     });
+    
+    // Test HTML serving
+    testHtmlBtn.addEventListener('click', async () => {
+      const port = portInput.value || 5002;
+      const testUrls = [
+        `http://localhost:${port}/`,
+        `http://localhost:${port}/index.html`
+      ];
+      
+      appendStatus('Testing HTML serving...');
+      
+      for (const url of testUrls) {
+        try {
+          const response = await fetch(url);
+          const contentType = response.headers.get('content-type') || 'unknown';
+          const text = await response.text();
+          
+          appendStatus(`${url} -> Status: ${response.status}, Type: ${contentType}`);
+          
+          if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+            appendStatus(`✅ Valid HTML content (${text.length} chars)`);
+          } else {
+            appendStatus(`❌ Not HTML: ${text.substring(0, 100)}...`);
+          }
+        } catch (e) {
+          appendStatus(`❌ ${url} -> Error: ${e.message}`);
+        }
+      }
+    });
+    
+    // Navigation buttons with error handling
+    backBtn.addEventListener('click', () => {
+      try {
+        if (previewFrame.contentWindow) {
+          previewFrame.contentWindow.history.back();
+        }
+      } catch (e) {
+        // Cross-origin restrictions - try alternative approach
+        console.log('Cannot access iframe history due to cross-origin restrictions');
+        appendStatus('Cannot navigate back - cross-origin restrictions');
+      }
+    });
+    
+    forwardBtn.addEventListener('click', () => {
+      try {
+        if (previewFrame.contentWindow) {
+          previewFrame.contentWindow.history.forward();
+        }
+      } catch (e) {
+        // Cross-origin restrictions - try alternative approach
+        console.log('Cannot access iframe history due to cross-origin restrictions');
+        appendStatus('Cannot navigate forward - cross-origin restrictions');
+      }
+    });
+    
     loadPreview();
 
     // Append functions
@@ -260,6 +349,17 @@
       appendStatus(`Starting frontend server on port ${port}...`);
       socket.send(JSON.stringify({
         command: 'start-frontend',
+        port: port,
+        conversationId
+      }));
+    });
+    
+    // Stop Frontend command
+    stopFrontendBtn.addEventListener('click', () => {
+      const port = portInput.value || 5002;
+      appendStatus(`Stopping frontend server on port ${port}...`);
+      socket.send(JSON.stringify({
+        command: 'stop-frontend',
         port: port,
         conversationId
       }));

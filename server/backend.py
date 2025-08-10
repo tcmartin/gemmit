@@ -259,6 +259,30 @@ async def monitor_frontend_process(port: int, proc: asyncio.subprocess.Process):
     finally:
         frontend_processes.pop(port, None)
 
+async def stop_frontend_server(port: int):
+    """Stop a frontend server running on the specified port"""
+    if port in frontend_processes:
+        try:
+            proc = frontend_processes[port]
+            print(f"Stopping frontend server on port {port}", file=sys.stderr)
+            proc.terminate()
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=5.0)
+                print(f"Frontend server on port {port} stopped gracefully", file=sys.stderr)
+            except asyncio.TimeoutError:
+                print(f"Frontend server on port {port} didn't stop gracefully, killing", file=sys.stderr)
+                proc.kill()
+                await proc.wait()
+            return True
+        except Exception as e:
+            print(f"Error stopping frontend server on port {port}: {e}", file=sys.stderr)
+            return False
+        finally:
+            frontend_processes.pop(port, None)
+    else:
+        print(f"No frontend server running on port {port}", file=sys.stderr)
+        return False
+
 async def start_frontend_server(port: int, work_dir: pathlib.Path):
     """Start a frontend server using npx serve (or gemmit-npx in production)"""
     try:
@@ -274,10 +298,18 @@ async def start_frontend_server(port: int, work_dir: pathlib.Path):
                 del frontend_processes[port]
         
         # Try gemmit-npx first (for production), fallback to npx (for development)
-        # Use -s flag for single-page apps, -C for CORS, --no-etag to prevent caching
+        # Use -C for CORS, -L to disable request logging for cleaner output
+        # Removed -s flag as it interferes with serving multiple HTML files
+        # Removed --no-etag as it's not supported in all versions
         commands_to_try = [
-            ['gemmit-npx', 'serve', '-s', '-C', '--no-etag', '-p', str(port)],
-            ['npx', 'serve', '-s', '-C', '--no-etag', '-p', str(port)]
+            ['gemmit-npx', 'serve', '-C', '-L', '-p', str(port)],
+            ['npx', 'serve', '-C', '-L', '-p', str(port)],
+            # Fallback without CORS if that fails
+            ['gemmit-npx', 'serve', '-p', str(port)],
+            ['npx', 'serve', '-p', str(port)],
+            # Ultimate fallback: Python's built-in HTTP server
+            ['python3', '-m', 'http.server', str(port)],
+            ['python', '-m', 'http.server', str(port)]
         ]
         
         for cmd in commands_to_try:
@@ -308,13 +340,27 @@ async def start_frontend_server(port: int, work_dir: pathlib.Path):
                     try:
                         import aiohttp
                         async with aiohttp.ClientSession() as session:
-                            async with session.get(f'http://localhost:{port}', timeout=aiohttp.ClientTimeout(total=2)) as response:
-                                if response.status < 500:  # Any response except server error is good
-                                    print(f"✅ Frontend server on port {port} is responding", file=sys.stderr)
-                                    return True
-                                else:
-                                    print(f"⚠️ Frontend server on port {port} returned status {response.status}", file=sys.stderr)
-                                    return True  # Still consider it started
+                            # Test both root and a specific HTML file
+                            test_urls = [f'http://localhost:{port}', f'http://localhost:{port}/index.html']
+                            
+                            for test_url in test_urls:
+                                try:
+                                    async with session.get(test_url, timeout=aiohttp.ClientTimeout(total=3)) as response:
+                                        content_type = response.headers.get('content-type', 'unknown')
+                                        print(f"✅ {test_url} -> Status: {response.status}, Content-Type: {content_type}", file=sys.stderr)
+                                        
+                                        if response.status < 500:
+                                            # Read a bit of content to verify it's actually HTML
+                                            if test_url.endswith('.html') or test_url.endswith('/'):
+                                                content_preview = await response.text()
+                                                if content_preview.strip().startswith('<!DOCTYPE') or content_preview.strip().startswith('<html'):
+                                                    print(f"✅ HTML content verified for {test_url}", file=sys.stderr)
+                                                else:
+                                                    print(f"⚠️ Unexpected content for {test_url}: {content_preview[:100]}...", file=sys.stderr)
+                                except Exception as url_e:
+                                    print(f"⚠️ Could not test {test_url}: {url_e}", file=sys.stderr)
+                            
+                            return True
                     except Exception as e:
                         print(f"⚠️ Could not verify server on port {port}: {e}", file=sys.stderr)
                         # Still return True since the process is running
@@ -481,6 +527,17 @@ async def ws_handler(ws, path=None):
                 'success': success, 
                 'port': port,
                 'message': f"Frontend server {'started' if success else 'failed to start'} on port {port}"
+            }))
+            continue
+        
+        if command == 'stop-frontend':
+            port = int(data.get('port', 5002))
+            success = await stop_frontend_server(port)
+            await ws.send(json.dumps({
+                'type': 'frontend_result',
+                'success': success,
+                'port': port,
+                'message': f"Frontend server {'stopped' if success else 'not running or failed to stop'} on port {port}"
             }))
             continue
         
