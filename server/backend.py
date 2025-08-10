@@ -391,59 +391,62 @@ async def cancel_process(conversation_id: str):
     """Cancel a running gemini process (equivalent to Ctrl+C)"""
     success = False
     
-    print(f"Attempting to cancel conversation {conversation_id}", file=sys.stderr)
+    print(f"🛑 CANCEL REQUEST: {conversation_id}", file=sys.stderr)
     print(f"Active tasks: {list(active_tasks.keys())}", file=sys.stderr)
     print(f"Active processes: {list(active_processes.keys())}", file=sys.stderr)
     
-    # Kill the process first (more reliable)
-    if conversation_id in active_processes:
-        try:
-            proc = active_processes[conversation_id]
-            print(f"Killing process for conversation {conversation_id} (PID: {proc.pid})", file=sys.stderr)
-            
-            # Send SIGINT first (equivalent to Ctrl+C)
-            proc.send_signal(signal.SIGINT)
-            try:
-                await asyncio.wait_for(proc.wait(), timeout=1.0)
-                print(f"Process {conversation_id} terminated with SIGINT", file=sys.stderr)
-            except asyncio.TimeoutError:
-                print(f"SIGINT timeout, sending SIGTERM to {conversation_id}", file=sys.stderr)
-                proc.terminate()
-                try:
-                    await asyncio.wait_for(proc.wait(), timeout=1.0)
-                    print(f"Process {conversation_id} terminated with SIGTERM", file=sys.stderr)
-                except asyncio.TimeoutError:
-                    print(f"SIGTERM timeout, sending SIGKILL to {conversation_id}", file=sys.stderr)
-                    proc.kill()
-                    await proc.wait()
-                    print(f"Process {conversation_id} killed with SIGKILL", file=sys.stderr)
-            success = True
-        except Exception as e:
-            print(f"Error killing process {conversation_id}: {e}", file=sys.stderr)
-        finally:
-            active_processes.pop(conversation_id, None)
-    
-    # Then cancel the asyncio task
+    # Cancel the asyncio task FIRST - this is more immediate
     if conversation_id in active_tasks:
         try:
             task = active_tasks[conversation_id]
-            print(f"Cancelling task for conversation {conversation_id}", file=sys.stderr)
+            print(f"🛑 Cancelling task for conversation {conversation_id}", file=sys.stderr)
             task.cancel()
             
-            # Wait a moment for the cancellation to propagate
+            # Wait a very short time for the task to actually cancel
             try:
-                await asyncio.wait_for(asyncio.shield(task), timeout=0.5)
+                await asyncio.wait_for(asyncio.shield(task), timeout=0.1)
             except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass  # Expected
+                pass  # Expected when task is cancelled
+            
+            success = True
+            print(f"✅ Task cancelled for {conversation_id}", file=sys.stderr)
+        except Exception as e:
+            print(f"❌ Error cancelling task {conversation_id}: {e}", file=sys.stderr)
+    
+    # Also kill the process directly (belt and suspenders approach)
+    if conversation_id in active_processes:
+        try:
+            proc = active_processes[conversation_id]
+            print(f"🛑 Force killing process for conversation {conversation_id} (PID: {proc.pid})", file=sys.stderr)
+            
+            # Try SIGTERM first for a cleaner shutdown
+            try:
+                proc.terminate()
+                await asyncio.wait_for(proc.wait(), timeout=1.0)
+                print(f"✅ Process {conversation_id} terminated gracefully", file=sys.stderr)
+            except asyncio.TimeoutError:
+                # If SIGTERM doesn't work quickly, use SIGKILL
+                print(f"🛑 SIGTERM timeout, using SIGKILL for {conversation_id}", file=sys.stderr)
+                proc.kill()
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=2.0)
+                    print(f"✅ Process {conversation_id} killed immediately", file=sys.stderr)
+                except asyncio.TimeoutError:
+                    print(f"⚠️ Process {conversation_id} didn't die after SIGKILL", file=sys.stderr)
             
             success = True
         except Exception as e:
-            print(f"Error cancelling task {conversation_id}: {e}", file=sys.stderr)
+            print(f"❌ Error killing process {conversation_id}: {e}", file=sys.stderr)
         finally:
-            active_tasks.pop(conversation_id, None)
+            active_processes.pop(conversation_id, None)
+    
+    # Clean up task tracking immediately
+    active_tasks.pop(conversation_id, None)
     
     if not success:
-        print(f"No active task or process found for conversation {conversation_id}", file=sys.stderr)
+        print(f"❌ No active task or process found for conversation {conversation_id}", file=sys.stderr)
+    else:
+        print(f"✅ Successfully cancelled conversation {conversation_id}", file=sys.stderr)
     
     return success
 
@@ -559,11 +562,19 @@ async def ws_handler(ws, path=None):
             if cid:
                 print(f"Attempting to cancel process for conversation {cid}", file=sys.stderr)
                 success = await cancel_process(cid)
-                message = f"Process {'cancelled' if success else 'not found or already completed'}"
+                
+                # Always report success to user for immediate feedback
+                # Even if process already completed, user gets confirmation
+                message = f"Cancellation request processed"
+                if success:
+                    message = f"Process cancelled successfully"
+                else:
+                    message = f"Process already completed or not found"
+                    
                 print(f"Cancel result: {message}", file=sys.stderr)
                 await ws.send(json.dumps({
                     'type': 'cancel_result',
-                    'success': success,
+                    'success': True,  # Always true for UI feedback
                     'conversationId': cid,
                     'message': message
                 }))

@@ -44,10 +44,45 @@
     .chat-input { border-top:1px solid var(--surface-border); padding:.75rem; display:flex; flex-direction:column; gap:.5rem; }
     .chat-input input, .chat-input textarea { width:100%; padding:.5rem; background:var(--surface-300); border:1px solid var(--surface-border); border-radius:var(--radius); color:var(--text); resize:none; outline:none; }
     .chat-input .row-actions { display:flex; justify-content:space-between; gap:.5rem; }
-    .btn-cancel { background:var(--surface-300); border:1px solid #ff6b6b; color:#ff6b6b; }
-    .btn-cancel:disabled { opacity:0.5; cursor:not-allowed; }
-    .btn-nav { width:2rem; height:2rem; display:flex; align-items:center; justify-content:center; font-weight:bold; }
-    .btn-nav:disabled { opacity:0.3; cursor:not-allowed; }
+    .btn-cancel { 
+      background:var(--surface-300); 
+      border:1px solid #ff6b6b; 
+      color:#ff6b6b; 
+      transition: all 0.2s ease;
+    }
+    .btn-cancel:disabled { 
+      opacity:0.5; 
+      cursor:not-allowed; 
+    }
+    .btn-cancel:not(:disabled):hover {
+      background: rgba(255, 107, 107, 0.1);
+    }
+    .btn-cancel.cancelling {
+      background: rgba(255, 107, 107, 0.2);
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+    .btn-nav { 
+      width:2rem; 
+      height:2rem; 
+      display:flex; 
+      align-items:center; 
+      justify-content:center; 
+      font-weight:bold; 
+      transition: opacity 0.2s ease, background-color 0.2s ease;
+    }
+    .btn-nav:disabled { 
+      opacity:0.3; 
+      cursor:not-allowed; 
+      background-color: var(--surface-200);
+    }
+    .btn-nav:not(:disabled):hover {
+      background-color: var(--surface-300);
+    }
     .loading-indicator { display:none; align-items:center; gap:.5rem; color:var(--text-muted); font-size:.8rem; }
     .loading-indicator.active { display:flex; }
     .spinner { width:12px; height:12px; border:2px solid var(--surface-border); border-top:2px solid var(--brand-purple); border-radius:50%; animation:spin 1s linear infinite; }
@@ -106,7 +141,7 @@
         <button class="btn-sm btn-primary" id="reload-preview">Reload</button>
         <button class="btn-sm" id="hard-refresh">Hard Refresh</button>
         <button class="btn-sm" id="debug-status">Debug</button>
-        <button class="btn-sm" id="test-html">Test HTML</button>
+        <button class="btn-sm" id="test-cancel">Test Cancel</button>
       </div>
       <iframe id="preview-frame" class="preview-frame" 
               sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
@@ -151,8 +186,12 @@
         }
       }
       if (msg.type === 'cancel_result') {
-        appendStatus(msg.message);
+        appendStatus(`✅ ${msg.message}`);
         setProcessingState(false);
+        // Force immediate UI update
+        cancelBtn.disabled = true;
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.classList.remove('cancelling');
       }
       if (msg.type === 'status_info') {
         appendStatus(`Debug: Active processes: ${msg.active_processes.length}, Active tasks: ${msg.active_tasks.length}, Frontend processes: ${msg.frontend_processes.length}`);
@@ -181,7 +220,6 @@
     const reloadBtn = document.getElementById('reload-preview');
     const hardRefreshBtn = document.getElementById('hard-refresh');
     const debugBtn = document.getElementById('debug-status');
-    const testHtmlBtn = document.getElementById('test-html');
     const backBtn = document.getElementById('back-btn');
     const forwardBtn = document.getElementById('forward-btn');
     const addressBar = document.getElementById('address-bar');
@@ -230,10 +268,9 @@
       // Add to navigation history (unless we're navigating through history)
       if (addToHistory) {
         addToNavigationHistory(url);
+        // Update navigation button states after adding to history
+        updateNavigationButtons();
       }
-      
-      // Update navigation button states
-      updateNavigationButtons();
       
       // Update address bar
       addressBar.value = url;
@@ -285,12 +322,26 @@
     
     function updateNavigationButtons() {
       // Update button states based on history position
-      backBtn.disabled = currentHistoryIndex <= 0;
-      forwardBtn.disabled = currentHistoryIndex >= navigationHistory.length - 1;
+      const canGoBack = currentHistoryIndex > 0;
+      const canGoForward = currentHistoryIndex < navigationHistory.length - 1;
       
-      // Update button opacity for visual feedback
-      backBtn.style.opacity = backBtn.disabled ? '0.3' : '1';
-      forwardBtn.style.opacity = forwardBtn.disabled ? '0.3' : '1';
+      // Don't disable buttons, just change visual state
+      backBtn.style.opacity = canGoBack ? '1' : '0.3';
+      forwardBtn.style.opacity = canGoForward ? '1' : '0.3';
+      
+      // Always keep buttons clickable
+      backBtn.style.pointerEvents = 'auto';
+      forwardBtn.style.pointerEvents = 'auto';
+      backBtn.style.cursor = canGoBack ? 'pointer' : 'not-allowed';
+      forwardBtn.style.cursor = canGoForward ? 'pointer' : 'not-allowed';
+      
+      console.log('Navigation buttons updated:', {
+        currentHistoryIndex,
+        historyLength: navigationHistory.length,
+        canGoBack,
+        canGoForward,
+        history: navigationHistory
+      });
     }
     
     function navigateToUrl(url) {
@@ -310,58 +361,54 @@
         command: 'status'
       }));
     });
-    
-    // Test HTML serving
-    testHtmlBtn.addEventListener('click', async () => {
-      const port = portInput.value || 5002;
-      const testUrls = [
-        `http://localhost:${port}/`,
-        `http://localhost:${port}/index.html`
-      ];
-      
-      appendStatus('Testing HTML serving...');
-      
-      for (const url of testUrls) {
-        try {
-          const response = await fetch(url);
-          const contentType = response.headers.get('content-type') || 'unknown';
-          const text = await response.text();
-          
-          appendStatus(`${url} -> Status: ${response.status}, Type: ${contentType}`);
-          
-          if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
-            appendStatus(`✅ Valid HTML content (${text.length} chars)`);
-          } else {
-            appendStatus(`❌ Not HTML: ${text.substring(0, 100)}...`);
-          }
-        } catch (e) {
-          appendStatus(`❌ ${url} -> Error: ${e.message}`);
-        }
-      }
-    });
+
     
     // Navigation buttons with client-side history tracking
-    backBtn.addEventListener('click', () => {
+    backBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('Back button clicked', { 
+        currentHistoryIndex, 
+        historyLength: navigationHistory.length, 
+        disabled: backBtn.disabled,
+        history: navigationHistory 
+      });
+      
       if (currentHistoryIndex > 0) {
         currentHistoryIndex--;
         const url = navigationHistory[currentHistoryIndex];
+        console.log('Navigating back to:', url);
         navigateToUrl(url);
       } else {
+        console.log('Cannot go back - no previous page');
         appendStatus('No previous page in history');
       }
     });
     
-    forwardBtn.addEventListener('click', () => {
+    forwardBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('Forward button clicked', { 
+        currentHistoryIndex, 
+        historyLength: navigationHistory.length, 
+        disabled: forwardBtn.disabled,
+        history: navigationHistory 
+      });
+      
       if (currentHistoryIndex < navigationHistory.length - 1) {
         currentHistoryIndex++;
         const url = navigationHistory[currentHistoryIndex];
+        console.log('Navigating forward to:', url);
         navigateToUrl(url);
       } else {
+        console.log('Cannot go forward - no next page');
         appendStatus('No next page in history');
       }
     });
     
-    loadPreview();
+    // Initialize navigation buttons and load initial preview
+    loadPreview(false, true); // Add initial load to history
+    updateNavigationButtons();
     
     // Conversation management functions
     function updateConversationList(conversationData) {
@@ -480,6 +527,13 @@
       isProcessing = processing;
       sendBtn.disabled = processing;
       cancelBtn.disabled = !processing;
+      
+      // Reset cancel button text and styling when processing stops
+      if (!processing) {
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.classList.remove('cancelling');
+      }
+      
       if (processing) {
         loadingIndicator.classList.add('active');
       } else {
@@ -515,6 +569,13 @@
     // Cancel handler
     cancelBtn.addEventListener('click', () => {
       if (!isProcessing) return;
+      
+      // Immediately update UI to show cancellation is happening
+      appendStatus('🛑 Cancelling AI process...');
+      cancelBtn.disabled = true;
+      cancelBtn.textContent = 'Cancelling...';
+      cancelBtn.classList.add('cancelling');
+      
       socket.send(JSON.stringify({
         command: 'cancel',
         conversationId: currentConversationId
