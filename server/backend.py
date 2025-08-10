@@ -391,21 +391,16 @@ async def cancel_process(conversation_id: str):
     """Cancel a running gemini process (equivalent to Ctrl+C)"""
     success = False
     
-    # Cancel the asyncio task first
-    if conversation_id in active_tasks:
-        try:
-            task = active_tasks[conversation_id]
-            print(f"Cancelling task for conversation {conversation_id}", file=sys.stderr)
-            task.cancel()
-            success = True
-        except Exception as e:
-            print(f"Error cancelling task {conversation_id}: {e}", file=sys.stderr)
+    print(f"Attempting to cancel conversation {conversation_id}", file=sys.stderr)
+    print(f"Active tasks: {list(active_tasks.keys())}", file=sys.stderr)
+    print(f"Active processes: {list(active_processes.keys())}", file=sys.stderr)
     
-    # Also try to kill the process directly
+    # Kill the process first (more reliable)
     if conversation_id in active_processes:
         try:
             proc = active_processes[conversation_id]
-            print(f"Sending SIGINT to process {conversation_id}", file=sys.stderr)
+            print(f"Killing process for conversation {conversation_id} (PID: {proc.pid})", file=sys.stderr)
+            
             # Send SIGINT first (equivalent to Ctrl+C)
             proc.send_signal(signal.SIGINT)
             try:
@@ -413,25 +408,42 @@ async def cancel_process(conversation_id: str):
                 print(f"Process {conversation_id} terminated with SIGINT", file=sys.stderr)
             except asyncio.TimeoutError:
                 print(f"SIGINT timeout, sending SIGTERM to {conversation_id}", file=sys.stderr)
-                # If SIGINT doesn't work, try SIGTERM
                 proc.terminate()
                 try:
                     await asyncio.wait_for(proc.wait(), timeout=1.0)
                     print(f"Process {conversation_id} terminated with SIGTERM", file=sys.stderr)
                 except asyncio.TimeoutError:
                     print(f"SIGTERM timeout, sending SIGKILL to {conversation_id}", file=sys.stderr)
-                    # Last resort: SIGKILL
                     proc.kill()
                     await proc.wait()
                     print(f"Process {conversation_id} killed with SIGKILL", file=sys.stderr)
             success = True
         except Exception as e:
-            print(f"Error cancelling process {conversation_id}: {e}", file=sys.stderr)
+            print(f"Error killing process {conversation_id}: {e}", file=sys.stderr)
         finally:
             active_processes.pop(conversation_id, None)
     
-    # Clean up task tracking
-    active_tasks.pop(conversation_id, None)
+    # Then cancel the asyncio task
+    if conversation_id in active_tasks:
+        try:
+            task = active_tasks[conversation_id]
+            print(f"Cancelling task for conversation {conversation_id}", file=sys.stderr)
+            task.cancel()
+            
+            # Wait a moment for the cancellation to propagate
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=0.5)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass  # Expected
+            
+            success = True
+        except Exception as e:
+            print(f"Error cancelling task {conversation_id}: {e}", file=sys.stderr)
+        finally:
+            active_tasks.pop(conversation_id, None)
+    
+    if not success:
+        print(f"No active task or process found for conversation {conversation_id}", file=sys.stderr)
     
     return success
 
@@ -565,6 +577,51 @@ async def ws_handler(ws, path=None):
                 'active_tasks': list(active_tasks.keys()),
                 'frontend_processes': list(frontend_processes.keys())
             }))
+            continue
+        
+        # Handle conversation list request
+        if command == 'list-conversations':
+            conversation_list = []
+            for cid, messages in conversations.items():
+                if messages:  # Only include conversations with messages
+                    # Get the first user message as preview
+                    first_message = messages[0] if messages else ""
+                    preview = first_message.replace("User: ", "").strip()[:100]
+                    if len(preview) > 100:
+                        preview += "..."
+                    
+                    conversation_list.append({
+                        'id': cid,
+                        'preview': preview,
+                        'messageCount': len(messages),
+                        'lastModified': time.time()  # We don't track this yet, so use current time
+                    })
+            
+            # Sort by message count (most recent activity first)
+            conversation_list.sort(key=lambda x: x['messageCount'], reverse=True)
+            
+            await ws.send(json.dumps({
+                'type': 'conversation_list',
+                'conversations': conversation_list
+            }))
+            continue
+        
+        # Handle conversation load request
+        if command == 'load-conversation':
+            target_cid = data.get('conversationId')
+            if target_cid and target_cid in conversations:
+                await ws.send(json.dumps({
+                    'type': 'conversation_loaded',
+                    'conversationId': target_cid,
+                    'messages': conversations[target_cid]
+                }))
+            else:
+                await ws.send(json.dumps({
+                    'type': 'conversation_loaded',
+                    'conversationId': target_cid,
+                    'messages': [],
+                    'error': 'Conversation not found'
+                }))
             continue
         
         # Conversation prompt
