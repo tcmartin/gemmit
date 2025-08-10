@@ -12,12 +12,26 @@ jobs:
   release:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [macos-13, ubuntu-latest, windows-latest]
+        # macos-15 = Apple Silicon (arm64), macos-13 = Intel (x86_64)
+        os: [macos-15, macos-13, ubuntu-latest, windows-latest]
 
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
+
+      # Quick sanity check for which arch the mac runners actually are
+      - name: Print runner info
+        shell: bash
+        run: |
+          echo "Runner OS: $RUNNER_OS"
+          echo "Runner arch: $RUNNER_ARCH"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            uname -a
+            uname -m
+            sysctl -n machdep.cpu.brand_string || true
+          fi
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -38,6 +52,7 @@ jobs:
 
       - name: Build backend binary (Unix)
         if: matrix.os != 'windows-latest'
+        shell: bash
         run: |
           chmod +x scripts/build_backend.sh
           ./scripts/build_backend.sh
@@ -48,14 +63,20 @@ jobs:
           powershell -ExecutionPolicy Bypass -File scripts/build_backend.ps1
 
       - name: Install desktop dependencies
+        shell: bash
         run: |
           cd desktop
           npm ci
 
+      # Builds on both macos-15 (arm64) and macos-13 (x64).
+      # electron-builder targets the host arch by default.
       - name: Build Electron app (macOS)
-        if: matrix.os == 'macos-13'
+        if: startsWith(matrix.os, 'macos-')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO: "false"           # avoid notarization on CI unless configured
+          ELECTRON_SKIP_NOTARIZATION: "true"
+        shell: bash
         run: |
           cd desktop
           npm run build:mac
@@ -76,12 +97,28 @@ jobs:
           cd desktop
           npm run build:linux
 
+      # Name artifacts with OS + detected arch to prevent collisions (esp. dual mac builds)
+      - name: Compute artifact name
+        id: name
+        shell: bash
+        run: |
+          ARCH="unknown"
+          if [[ "$RUNNER_OS" == "macOS" || "$RUNNER_OS" == "Linux" ]]; then
+            ARCH="$(uname -m)"
+          else
+            if [[ "$RUNNER_ARCH" == "X64" ]]; then ARCH="x86_64"; else ARCH="$RUNNER_ARCH"; fi
+          fi
+          echo "arch=$ARCH" >> $GITHUB_OUTPUT
+          echo "Resolved arch: $ARCH"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.os }}
+          name: release-${{ matrix.os }}-${{ steps.name.outputs.arch }}
+          if-no-files-found: ignore
           path: |
             desktop/dist/*.dmg
+            desktop/dist/*.zip
             desktop/dist/*.exe
             desktop/dist/*.AppImage
             desktop/dist/*.deb
@@ -90,7 +127,6 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
-
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -103,8 +139,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/**/*
+          files: artifacts/**/*
           draft: true
           generate_release_notes: true
         env:
