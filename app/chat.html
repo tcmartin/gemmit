@@ -36,11 +36,18 @@
     .bubble-ai { border-left:3px solid var(--surface-border); color:var(--text-muted); padding-left:.75rem; }
     .chat-input { border-top:1px solid var(--surface-border); padding:.75rem; display:flex; flex-direction:column; gap:.5rem; }
     .chat-input input, .chat-input textarea { width:100%; padding:.5rem; background:var(--surface-300); border:1px solid var(--surface-border); border-radius:var(--radius); color:var(--text); resize:none; outline:none; }
-    .chat-input .row-actions { display:flex; justify-content:space-between; }
+    .chat-input .row-actions { display:flex; justify-content:space-between; gap:.5rem; }
+    .btn-cancel { background:var(--surface-300); border:1px solid #ff6b6b; color:#ff6b6b; }
+    .btn-cancel:disabled { opacity:0.5; cursor:not-allowed; }
+    .loading-indicator { display:none; align-items:center; gap:.5rem; color:var(--text-muted); font-size:.8rem; }
+    .loading-indicator.active { display:flex; }
+    .spinner { width:12px; height:12px; border:2px solid var(--surface-border); border-top:2px solid var(--brand-purple); border-radius:50%; animation:spin 1s linear infinite; }
+    @keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }
     .preview-header { padding:.75rem; background:var(--surface-200); border-bottom:1px solid var(--surface-border); display:flex; align-items:center; gap:.5rem; }
     .preview-header input { width:5rem; background:var(--surface-300); border:1px solid var(--surface-border); border-radius:var(--radius); color:var(--text); padding:.25rem .5rem; }
     .preview-frame { flex:1; border:none; width:100%; height:100%; }
     .preview-error { color:var(--text-muted); text-align:center; margin-top:2rem; }
+    .status-message { padding:.5rem; background:var(--surface-300); border-radius:var(--radius); margin-bottom:.5rem; font-size:.8rem; color:var(--text-muted); }
   </style>
 </head>
 <body>
@@ -56,8 +63,13 @@
         <input type="text" id="output-dir" placeholder="Output directory (optional)" />
         <input type="number" id="preview-port" placeholder="Port" />
         <textarea id="prompt-input" rows="2" placeholder="Ask Gemmit..."></textarea>
+        <div class="loading-indicator" id="loading-indicator">
+          <div class="spinner"></div>
+          <span>AI is thinking...</span>
+        </div>
         <div class="row-actions">
           <button class="btn-sm" id="send-btn">Send</button>
+          <button class="btn-sm btn-cancel" id="cancel-btn" disabled>Cancel</button>
         </div>
       </div>
     </aside>
@@ -89,7 +101,28 @@
     socket.onmessage = e => {
       const msg = JSON.parse(e.data);
       if (msg.type === 'stream') appendBot(msg.data);
-      if (msg.type === 'result') console.log('Result:', msg);
+      if (msg.type === 'result') {
+        console.log('Result:', msg);
+        setProcessingState(false);
+      }
+      if (msg.type === 'status') {
+        if (msg.status === 'running') {
+          setProcessingState(true);
+        } else if (msg.status === 'complete') {
+          setProcessingState(false);
+        }
+      }
+      if (msg.type === 'frontend_result') {
+        appendStatus(msg.message);
+        if (msg.success) {
+          // Reload preview after a short delay to let server start
+          setTimeout(() => loadPreview(), 1000);
+        }
+      }
+      if (msg.type === 'cancel_result') {
+        appendStatus(msg.message);
+        setProcessingState(false);
+      }
     };
     socket.onclose = () => console.log('Socket closed');
 
@@ -97,12 +130,17 @@
     const chatScroll = document.getElementById('chat-scroll');
     const promptInput = document.getElementById('prompt-input');
     const sendBtn = document.getElementById('send-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const loadingIndicator = document.getElementById('loading-indicator');
     const outputDirInput = document.getElementById('output-dir');
     const portInput = document.getElementById('preview-port');
     const portDisplay = document.getElementById('preview-port-display');
     const reloadBtn = document.getElementById('reload-preview');
     const previewFrame = document.getElementById('preview-frame');
     const startFrontendBtn = document.getElementById('start-frontend');
+    
+    // State tracking
+    let isProcessing = false;
 
     // --- NEW: Preload prompt from URL query parameter ---
     const urlParams = new URLSearchParams(window.location.search);
@@ -142,12 +180,35 @@
       last.textContent += text;
       last.scrollIntoView();
     }
+    function appendStatus(text) {
+      const d = document.createElement('div');
+      d.className = 'status-message';
+      d.textContent = text;
+      chatScroll.append(d);
+      d.scrollIntoView();
+    }
+    
+    // State management
+    function setProcessingState(processing) {
+      isProcessing = processing;
+      sendBtn.disabled = processing;
+      cancelBtn.disabled = !processing;
+      if (processing) {
+        loadingIndicator.classList.add('active');
+      } else {
+        loadingIndicator.classList.remove('active');
+      }
+    }
 
     // Send handler
     sendBtn.addEventListener('click', () => {
+      if (isProcessing) return;
       const prompt = promptInput.value.trim();
       if (!prompt) return;
+      
       appendUser(prompt);
+      setProcessingState(true);
+      
       const payload = {
         prompt,
         conversationId,
@@ -160,12 +221,23 @@
       socket.send(JSON.stringify(payload));
       promptInput.value = '';
     });
+    
+    // Cancel handler
+    cancelBtn.addEventListener('click', () => {
+      if (!isProcessing) return;
+      socket.send(JSON.stringify({
+        command: 'cancel',
+        conversationId
+      }));
+    });
 
     // Start Frontend command
     startFrontendBtn.addEventListener('click', () => {
+      const port = portInput.value || 5002;
+      appendStatus(`Starting frontend server on port ${port}...`);
       socket.send(JSON.stringify({
         command: 'start-frontend',
-        port: portInput.value,
+        port: port,
         conversationId
       }));
     });
@@ -174,7 +246,9 @@
     promptInput.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        sendBtn.click();
+        if (!isProcessing) {
+          sendBtn.click();
+        }
       }
     });
   </script>

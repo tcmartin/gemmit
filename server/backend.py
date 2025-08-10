@@ -203,6 +203,10 @@ conversations: dict[str, list[str]] = load_conversations()
 startup_time = time.time()
 print(f"Backend started at {time.ctime(startup_time)}, loaded {len(conversations)} conversations", file=sys.stderr)
 
+# Process tracking for cancellation
+active_processes: dict[str, asyncio.subprocess.Process] = {}
+frontend_processes: dict[int, asyncio.subprocess.Process] = {}
+
 # HTTP server: static files and health endpoint
 STATIC_ROOT = BASE_DIR / 'app'
 
@@ -223,16 +227,82 @@ app.router.add_static('/', STATIC_ROOT, show_index=True)
 
 # WebSocket handler and streaming utilities
 async def stream_pipe(pipe, name, ws, buffer):
-    while True:
-        chunk = await pipe.readline()
-        if not chunk:
-            break
-        data = chunk.decode()
-        if name == 'stdout':
-            buffer.append(data)
-        await ws.send(json.dumps({'type': 'stream', 'stream': name, 'data': data}))
+    try:
+        while True:
+            chunk = await pipe.readline()
+            if not chunk:
+                break
+            data = chunk.decode()
+            if name == 'stdout':
+                buffer.append(data)
+            await ws.send(json.dumps({'type': 'stream', 'stream': name, 'data': data}))
+    except asyncio.CancelledError:
+        # Stream was cancelled, this is expected
+        raise
+    except Exception as e:
+        # Handle other errors gracefully
+        print(f"Error in stream_pipe: {e}", file=sys.stderr)
 
-async def run_gemini(prompt: str, work_dir: pathlib.Path, ws):
+async def start_frontend_server(port: int, work_dir: pathlib.Path):
+    """Start a frontend server using npx serve (or gemmit-npx in production)"""
+    try:
+        # Kill existing server on this port if it exists
+        if port in frontend_processes:
+            try:
+                frontend_processes[port].terminate()
+                await asyncio.wait_for(frontend_processes[port].wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                frontend_processes[port].kill()
+                await frontend_processes[port].wait()
+            finally:
+                del frontend_processes[port]
+        
+        # Try gemmit-npx first (for production), fallback to npx (for development)
+        commands_to_try = [
+            ['gemmit-npx', 'serve', '-p', str(port)],
+            ['npx', 'serve', '-p', str(port)]
+        ]
+        
+        for cmd in commands_to_try:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd, cwd=str(work_dir),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=os.environ
+                )
+                
+                frontend_processes[port] = proc
+                print(f"Started frontend server on port {port} in {work_dir} using {cmd[0]}")
+                return True
+                
+            except FileNotFoundError:
+                print(f"Command {cmd[0]} not found, trying next option...")
+                continue
+        
+        print("No suitable serve command found (tried gemmit-npx and npx)", file=sys.stderr)
+        return False
+        
+    except Exception as e:
+        print(f"Failed to start frontend server: {e}", file=sys.stderr)
+        return False
+
+async def cancel_process(conversation_id: str):
+    """Cancel a running gemini process"""
+    if conversation_id in active_processes:
+        try:
+            proc = active_processes[conversation_id]
+            proc.terminate()
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+        finally:
+            active_processes.pop(conversation_id, None)
+        return True
+    return False
+
+async def run_gemini(prompt: str, work_dir: pathlib.Path, ws, conversation_id: str):
     # Use chat endpoint, drop code-assist '-a'
     cmd = [GEMINI_BIN, '-y', '-a', '-p', prompt, '-m', 'gemini-2.5-flash']
     
@@ -247,13 +317,31 @@ async def run_gemini(prompt: str, work_dir: pathlib.Path, ws):
         stderr=asyncio.subprocess.PIPE,
         env=os.environ  # Explicitly pass full environment for MCP server access
     )
-    out_buf: list[str] = []
-    await asyncio.gather(
-        stream_pipe(proc.stdout, 'stdout', ws, out_buf),
-        stream_pipe(proc.stderr, 'stderr', ws, [])
-    )
-    await proc.wait()
-    return proc.returncode, ''.join(out_buf)
+    
+    # Track the process for cancellation
+    active_processes[conversation_id] = proc
+    
+    try:
+        out_buf: list[str] = []
+        await asyncio.gather(
+            stream_pipe(proc.stdout, 'stdout', ws, out_buf),
+            stream_pipe(proc.stderr, 'stderr', ws, [])
+        )
+        await proc.wait()
+        return proc.returncode, ''.join(out_buf)
+    except asyncio.CancelledError:
+        # Process was cancelled
+        proc.terminate()
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+        await ws.send(json.dumps({'type': 'stream', 'stream': 'stderr', 'data': '\n[Process cancelled by user]\n'}))
+        return -1, '[Process cancelled by user]'
+    finally:
+        # Clean up process tracking
+        active_processes.pop(conversation_id, None)
 
 async def ws_handler(ws, path=None):
     async for msg in ws:
@@ -282,6 +370,33 @@ async def ws_handler(ws, path=None):
                 err = str(e)
             await ws.send(json.dumps({'type': 'save_ack', 'filename': fn.name, 'error': err}))
             continue
+        
+        # Handle frontend server commands
+        command = data.get('command')
+        if command == 'start-frontend':
+            port = int(data.get('port', 5002))
+            success = await start_frontend_server(port, WORK_DIR)
+            await ws.send(json.dumps({
+                'type': 'frontend_result', 
+                'success': success, 
+                'port': port,
+                'message': f"Frontend server {'started' if success else 'failed to start'} on port {port}"
+            }))
+            continue
+        
+        # Handle process cancellation
+        if command == 'cancel':
+            cid = data.get('conversationId')
+            if cid:
+                success = await cancel_process(cid)
+                await ws.send(json.dumps({
+                    'type': 'cancel_result',
+                    'success': success,
+                    'conversationId': cid,
+                    'message': f"Process {'cancelled' if success else 'not found or already completed'}"
+                }))
+            continue
+        
         # Conversation prompt
         prompt = data.get('prompt')
         cid = data.get('conversationId') or str(uuid.uuid4())
@@ -293,13 +408,19 @@ async def ws_handler(ws, path=None):
         history = '\n'.join(conversations.get(cid, []))
         print(f"Conversation {cid} has {len(conversations.get(cid, []))} previous messages", file=sys.stderr)
         
+        # Send status update
+        await ws.send(json.dumps({'type': 'status', 'status': 'running', 'conversationId': cid}))
+        
         full_prompt = f"{prompt}\n\n[conversation history]\n{history}"
-        rc, reply = await run_gemini(full_prompt, WORK_DIR, ws)
+        rc, reply = await run_gemini(full_prompt, WORK_DIR, ws, cid)
         if rc == 0:
             conversations.setdefault(cid, []).extend([f"User: {prompt}", f"Model: {reply}"])
             # Persist conversations to disk
             save_conversations(conversations)
             print(f"Saved conversation {cid}, now has {len(conversations.get(cid, []))} messages", file=sys.stderr)
+        
+        # Send completion status
+        await ws.send(json.dumps({'type': 'status', 'status': 'complete', 'conversationId': cid}))
         await ws.send(json.dumps({'type': 'result', 'returncode': rc, 'conversationId': cid}))
 
 # Main entry point
