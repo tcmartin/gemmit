@@ -19,16 +19,19 @@ mac:
       arch: [arm64]  # Only build for Apple Silicon since we can't cross-compile the Python backend
   hardenedRuntime: false
   gatekeeperAssess: false
-  entitlements: build/entitlements.mac.plist
-  entitlementsInherit: build/entitlements.mac.plist
   icon: "assets/icons/icon.icns"
   category: public.app-category.developer-tools
   # Disable code signing for now (unsigned builds)
   identity: null
+  # Remove entitlements for unsigned builds to avoid conflicts
+  # entitlements: build/entitlements.mac.plist
+  # entitlementsInherit: build/entitlements.mac.plist
   # Add extended attributes to help with Gatekeeper
   extendInfo:
     LSUIElement: false
     NSHighResolutionCapable: true
+  # Additional settings for unsigned builds
+  type: distribution
 
 win:
   target:
