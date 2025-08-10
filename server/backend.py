@@ -1,5 +1,5 @@
 import sys
-import asyncio, json, os, uuid, mimetypes, pathlib, time
+import asyncio, json, os, uuid, mimetypes, pathlib, time, signal
 import websockets
 from aiohttp import web
 
@@ -258,9 +258,10 @@ async def start_frontend_server(port: int, work_dir: pathlib.Path):
                 del frontend_processes[port]
         
         # Try gemmit-npx first (for production), fallback to npx (for development)
+        # Add --no-cache flag to prevent caching issues
         commands_to_try = [
-            ['gemmit-npx', 'serve', '-p', str(port)],
-            ['npx', 'serve', '-p', str(port)]
+            ['gemmit-npx', 'serve', '-p', str(port), '--no-cache'],
+            ['npx', 'serve', '-p', str(port), '--no-cache']
         ]
         
         for cmd in commands_to_try:
@@ -288,15 +289,25 @@ async def start_frontend_server(port: int, work_dir: pathlib.Path):
         return False
 
 async def cancel_process(conversation_id: str):
-    """Cancel a running gemini process"""
+    """Cancel a running gemini process (equivalent to Ctrl+C)"""
     if conversation_id in active_processes:
         try:
             proc = active_processes[conversation_id]
-            proc.terminate()
-            await asyncio.wait_for(proc.wait(), timeout=5.0)
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
+            # Send SIGINT first (equivalent to Ctrl+C)
+            proc.send_signal(signal.SIGINT)
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=3.0)
+            except asyncio.TimeoutError:
+                # If SIGINT doesn't work, try SIGTERM
+                proc.terminate()
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    # Last resort: SIGKILL
+                    proc.kill()
+                    await proc.wait()
+        except Exception as e:
+            print(f"Error cancelling process {conversation_id}: {e}", file=sys.stderr)
         finally:
             active_processes.pop(conversation_id, None)
         return True
@@ -311,11 +322,13 @@ async def run_gemini(prompt: str, work_dir: pathlib.Path, ws, conversation_id: s
     print(f"Working directory: {work_dir}")
     print(f"Command: {' '.join(cmd)}")
     
+    # Create process in new process group for proper signal handling
     proc = await asyncio.create_subprocess_exec(
         *cmd, cwd=str(work_dir),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=os.environ  # Explicitly pass full environment for MCP server access
+        env=os.environ,  # Explicitly pass full environment for MCP server access
+        preexec_fn=os.setsid if hasattr(os, 'setsid') else None  # Create new process group on Unix
     )
     
     # Track the process for cancellation
@@ -331,12 +344,23 @@ async def run_gemini(prompt: str, work_dir: pathlib.Path, ws, conversation_id: s
         return proc.returncode, ''.join(out_buf)
     except asyncio.CancelledError:
         # Process was cancelled
-        proc.terminate()
+        print(f"Process {conversation_id} was cancelled, terminating...", file=sys.stderr)
         try:
-            await asyncio.wait_for(proc.wait(), timeout=5.0)
+            # Send SIGINT first (like Ctrl+C)
+            proc.send_signal(signal.SIGINT)
+            await asyncio.wait_for(proc.wait(), timeout=3.0)
         except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
+            print(f"SIGINT timeout, sending SIGTERM to {conversation_id}", file=sys.stderr)
+            proc.terminate()
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=2.0)
+            except asyncio.TimeoutError:
+                print(f"SIGTERM timeout, sending SIGKILL to {conversation_id}", file=sys.stderr)
+                proc.kill()
+                await proc.wait()
+        except Exception as e:
+            print(f"Error during cancellation: {e}", file=sys.stderr)
+        
         await ws.send(json.dumps({'type': 'stream', 'stream': 'stderr', 'data': '\n[Process cancelled by user]\n'}))
         return -1, '[Process cancelled by user]'
     finally:
@@ -388,13 +412,25 @@ async def ws_handler(ws, path=None):
         if command == 'cancel':
             cid = data.get('conversationId')
             if cid:
+                print(f"Attempting to cancel process for conversation {cid}", file=sys.stderr)
                 success = await cancel_process(cid)
+                message = f"Process {'cancelled' if success else 'not found or already completed'}"
+                print(f"Cancel result: {message}", file=sys.stderr)
                 await ws.send(json.dumps({
                     'type': 'cancel_result',
                     'success': success,
                     'conversationId': cid,
-                    'message': f"Process {'cancelled' if success else 'not found or already completed'}"
+                    'message': message
                 }))
+            continue
+        
+        # Handle status check
+        if command == 'status':
+            await ws.send(json.dumps({
+                'type': 'status_info',
+                'active_processes': list(active_processes.keys()),
+                'frontend_processes': list(frontend_processes.keys())
+            }))
             continue
         
         # Conversation prompt
@@ -423,16 +459,65 @@ async def ws_handler(ws, path=None):
         await ws.send(json.dumps({'type': 'status', 'status': 'complete', 'conversationId': cid}))
         await ws.send(json.dumps({'type': 'result', 'returncode': rc, 'conversationId': cid}))
 
+async def cleanup_processes():
+    """Clean up all running processes"""
+    print("Cleaning up processes...", file=sys.stderr)
+    
+    # Kill all active gemini processes
+    for cid, proc in list(active_processes.items()):
+        try:
+            proc.terminate()
+            await asyncio.wait_for(proc.wait(), timeout=2.0)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+        except Exception as e:
+            print(f"Error cleaning up process {cid}: {e}", file=sys.stderr)
+    
+    # Kill all frontend processes
+    for port, proc in list(frontend_processes.items()):
+        try:
+            proc.terminate()
+            await asyncio.wait_for(proc.wait(), timeout=2.0)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+        except Exception as e:
+            print(f"Error cleaning up frontend process on port {port}: {e}", file=sys.stderr)
+    
+    print("Process cleanup complete", file=sys.stderr)
+
 # Main entry point
 async def main():
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, HOST, PORT + 1)
-    await site.start()
-    ws_server = await websockets.serve(ws_handler, HOST, PORT)
-    print(f"HTTP  at http://{HOST}:{PORT+1}  |  WS at ws://{HOST}:{PORT}")
-    await ws_server.wait_closed()
+    import signal
+    
+    def signal_handler(signum, frame):
+        print(f"Received signal {signum}, shutting down...", file=sys.stderr)
+        # Create a task to cleanup processes
+        asyncio.create_task(cleanup_processes())
+        # Exit after cleanup
+        sys.exit(0)
+    
+    # Register signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    try:
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, HOST, PORT + 1)
+        await site.start()
+        ws_server = await websockets.serve(ws_handler, HOST, PORT)
+        print(f"HTTP  at http://{HOST}:{PORT+1}  |  WS at ws://{HOST}:{PORT}")
+        await ws_server.wait_closed()
+    except KeyboardInterrupt:
+        print("Keyboard interrupt received", file=sys.stderr)
+    finally:
+        await cleanup_processes()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Backend shutting down...", file=sys.stderr)
 

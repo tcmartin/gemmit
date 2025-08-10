@@ -560,9 +560,45 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
-  if (backendProc?.pid) kill(backendProc.pid);
+  console.log('App is quitting, cleaning up processes...');
+  if (backendProc?.pid) {
+    console.log(`Killing backend process ${backendProc.pid}`);
+    kill(backendProc.pid, 'SIGTERM');
+    // Give it a moment, then force kill if needed
+    setTimeout(() => {
+      if (backendProc?.pid) {
+        console.log(`Force killing backend process ${backendProc.pid}`);
+        kill(backendProc.pid, 'SIGKILL');
+      }
+    }, 2000);
+  }
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+// Handle unexpected exits
+process.on('exit', () => {
+  if (backendProc?.pid) {
+    kill(backendProc.pid, 'SIGKILL');
+  }
+});
+
+process.on('SIGINT', () => {
+  console.log('Received SIGINT, cleaning up...');
+  if (backendProc?.pid) {
+    kill(backendProc.pid, 'SIGTERM');
+  }
+  app.quit();
+});
+
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM, cleaning up...');
+  if (backendProc?.pid) {
+    kill(backendProc.pid, 'SIGTERM');
+  }
+  app.quit();
 });
