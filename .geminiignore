@@ -1,0 +1,79 @@
+.gemini
+# ───────────────────────────────────────────────────────────────
+#  Core project               (ROOT/)
+# ───────────────────────────────────────────────────────────────
+# macOS / Windows cruft
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+# JetBrains / VS Code
+.idea/
+.vscode/
+# Editor swap / lock files
+*.[sS][wW][pP]
+*.sw?
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+scripts/node_modules/
+# dotenv / secrets
+.env
+.env.*          # .env.prod, .env.local, etc.
+desktop/resources/bin/*/node
+desktop/resources/bin/*/node.exe
+desktop/resources/bin/*/npm/**
+# ───────────────────────────────────────────────────────────────
+#  Python backend             (server/)
+# ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+# virtual envs
+.venv/
+venv/
+# PyInstaller output
+server/build/
+server/dist/
+*.spec
+
+# ───────────────────────────────────────────────────────────────
+#  Front-end static app       (app/)
+# ───────────────────────────────────────────────────────────────
+# Node modules & Vite/React build output
+app/node_modules/
+app/dist/
+
+# ───────────────────────────────────────────────────────────────
+#  Electron desktop app       (desktop/)
+# ───────────────────────────────────────────────────────────────
+desktop/node_modules/
+# Webpack output (development)
+desktop/dist*/
+# electron-builder & electron-forge output
+desktop/out/
+desktop/release-builds/
+# Final installers / auto-update artefacts
+desktop/*.dmg
+desktop/*.exe
+desktop/*.AppImage
+desktop/*.deb
+desktop/*.rpm
+desktop/*.snap
+desktop/*.msi
+desktop/*.zip
+# Compiled backend + gemini binaries copied into resources
+desktop/resources/bin/**
+
+# ───────────────────────────────────────────────────────────────
+#  Misc build scripts         (scripts/)
+# ───────────────────────────────────────────────────────────────
+# Any temp / cache the helper scripts create
+scripts/*.tmp
+scripts/*.cache
+
