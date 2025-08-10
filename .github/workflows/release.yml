@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   release:
@@ -19,7 +19,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '23.3.0'
+          node-version: "23.3.0"
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
@@ -31,23 +31,7 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies (Unix)
-        if: matrix.os != 'windows-latest'
-        run: |
-          python -m venv server/.venv
-          source server/.venv/bin/activate
-          pip install --upgrade pip
-          pip install -r server/requirements.txt pyinstaller
-
-      - name: Install Python dependencies (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          python -m venv server/.venv
-          server/.venv/Scripts/activate
-          pip install --upgrade pip
-          pip install -r server/requirements.txt pyinstaller
+          python-version: "3.11"
 
       - name: Build backend binary (Unix)
         if: matrix.os != 'windows-latest'
@@ -58,11 +42,7 @@ jobs:
       - name: Build backend binary (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          server/.venv/Scripts/activate
-          cd server
-          pyinstaller backend.py --onefile --name backend --add-data "../app;app"
-          mkdir -p ../desktop/resources/bin/win
-          move dist/backend.exe ../desktop/resources/bin/win/
+          powershell -ExecutionPolicy Bypass -File scripts/build_backend.ps1
 
       - name: Install desktop dependencies
         run: |
@@ -126,4 +106,3 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
