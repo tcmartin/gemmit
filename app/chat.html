@@ -54,6 +54,8 @@
     @keyframes spin { 0% { transform:rotate(0deg); } 100% { transform:rotate(360deg); } }
     .preview-header { padding:.75rem; background:var(--surface-200); border-bottom:1px solid var(--surface-border); display:flex; align-items:center; gap:.5rem; }
     .preview-header input { width:5rem; background:var(--surface-300); border:1px solid var(--surface-border); border-radius:var(--radius); color:var(--text); padding:.25rem .5rem; }
+    .preview-header input[readonly] { background:var(--surface-100); color:var(--text-muted); }
+    #address-bar { font-family:monospace; font-size:.8rem; }
     .preview-frame { flex:1; border:none; width:100%; height:100%; }
     .preview-error { color:var(--text-muted); text-align:center; margin-top:2rem; }
     .status-message { padding:.5rem; background:var(--surface-300); border-radius:var(--radius); margin-bottom:.5rem; font-size:.8rem; color:var(--text-muted); }
@@ -98,7 +100,8 @@
       <div class="preview-header">
         <button class="btn-sm btn-nav" id="back-btn" title="Go Back">←</button>
         <button class="btn-sm btn-nav" id="forward-btn" title="Go Forward">→</button>
-        <label>Preview Port:</label>
+        <input type="text" id="address-bar" placeholder="http://localhost:5002" style="flex:1; margin:0 .5rem;" readonly />
+        <label>Port:</label>
         <input type="number" id="preview-port-display" disabled />
         <button class="btn-sm btn-primary" id="reload-preview">Reload</button>
         <button class="btn-sm" id="hard-refresh">Hard Refresh</button>
@@ -142,7 +145,7 @@
           // Reload preview after a longer delay to let server fully start
           appendStatus('Waiting for server to be ready...');
           setTimeout(() => {
-            loadPreview(false); // Don't cache bust when server starts
+            loadPreview(false, false); // Don't cache bust when server starts, don't add to history
             appendStatus('Preview reloaded');
           }, 2000);
         }
@@ -181,6 +184,7 @@
     const testHtmlBtn = document.getElementById('test-html');
     const backBtn = document.getElementById('back-btn');
     const forwardBtn = document.getElementById('forward-btn');
+    const addressBar = document.getElementById('address-bar');
     const previewFrame = document.getElementById('preview-frame');
     const startFrontendBtn = document.getElementById('start-frontend');
     const stopFrontendBtn = document.getElementById('stop-frontend');
@@ -192,6 +196,10 @@
     let isProcessing = false;
     let currentConversationId = conversationId;
     let conversations = {};
+    
+    // Navigation history tracking
+    let navigationHistory = [];
+    let currentHistoryIndex = -1;
 
     // --- NEW: Preload prompt from URL query parameter ---
     const urlParams = new URLSearchParams(window.location.search);
@@ -205,7 +213,7 @@
     // Initialize inputs
     portInput.value = cfg.previewPort || 5002;
     outputDirInput.value = cfg.generationsDir || '';
-    function loadPreview(forceCacheBust = false) {
+    function loadPreview(forceCacheBust = false, addToHistory = true) {
       const p = portInput.value;
       portDisplay.value = p;
       
@@ -219,9 +227,35 @@
       
       previewFrame.src = url;
       
+      // Add to navigation history (unless we're navigating through history)
+      if (addToHistory) {
+        addToNavigationHistory(url);
+      }
+      
+      // Update navigation button states
+      updateNavigationButtons();
+      
+      // Update address bar
+      addressBar.value = url;
+      
       // Add error handling for iframe load
       previewFrame.onload = () => {
         console.log(`Preview loaded: ${url}`);
+        // Try to detect URL changes within the iframe (limited by CORS)
+        try {
+          const iframeUrl = previewFrame.contentWindow.location.href;
+          if (iframeUrl !== url && !iframeUrl.includes('about:blank')) {
+            // URL changed within iframe, update our tracking
+            addressBar.value = iframeUrl;
+            if (addToHistory) {
+              addToNavigationHistory(iframeUrl);
+              updateNavigationButtons();
+            }
+          }
+        } catch (e) {
+          // Cross-origin restrictions prevent access, which is expected
+          console.log('Cannot access iframe URL due to cross-origin restrictions');
+        }
       };
       
       previewFrame.onerror = (e) => {
@@ -229,11 +263,47 @@
         appendStatus(`Failed to load preview from ${url}`);
       };
     }
-    reloadBtn.addEventListener('click', () => loadPreview(true)); // Force cache bust on reload
+    
+    function addToNavigationHistory(url) {
+      // Remove any forward history if we're not at the end
+      if (currentHistoryIndex < navigationHistory.length - 1) {
+        navigationHistory = navigationHistory.slice(0, currentHistoryIndex + 1);
+      }
+      
+      // Don't add duplicate consecutive URLs
+      if (navigationHistory.length === 0 || navigationHistory[navigationHistory.length - 1] !== url) {
+        navigationHistory.push(url);
+        currentHistoryIndex = navigationHistory.length - 1;
+        
+        // Limit history size to prevent memory issues
+        if (navigationHistory.length > 50) {
+          navigationHistory = navigationHistory.slice(-50);
+          currentHistoryIndex = navigationHistory.length - 1;
+        }
+      }
+    }
+    
+    function updateNavigationButtons() {
+      // Update button states based on history position
+      backBtn.disabled = currentHistoryIndex <= 0;
+      forwardBtn.disabled = currentHistoryIndex >= navigationHistory.length - 1;
+      
+      // Update button opacity for visual feedback
+      backBtn.style.opacity = backBtn.disabled ? '0.3' : '1';
+      forwardBtn.style.opacity = forwardBtn.disabled ? '0.3' : '1';
+    }
+    
+    function navigateToUrl(url) {
+      previewFrame.src = url;
+      addressBar.value = url;
+      updateNavigationButtons();
+      appendStatus(`Navigated to: ${url}`);
+    }
+    reloadBtn.addEventListener('click', () => loadPreview(true, false)); // Force cache bust on reload, don't add to history
     hardRefreshBtn.addEventListener('click', () => {
       // Force a complete reload by clearing the src first
       previewFrame.src = 'about:blank';
-      setTimeout(() => loadPreview(true), 100); // Force cache bust on hard refresh
+      setTimeout(() => loadPreview(true, false), 100); // Force cache bust on hard refresh, don't add to history
     });
     debugBtn.addEventListener('click', () => {
       socket.send(JSON.stringify({
@@ -270,28 +340,24 @@
       }
     });
     
-    // Navigation buttons with error handling
+    // Navigation buttons with client-side history tracking
     backBtn.addEventListener('click', () => {
-      try {
-        if (previewFrame.contentWindow) {
-          previewFrame.contentWindow.history.back();
-        }
-      } catch (e) {
-        // Cross-origin restrictions - try alternative approach
-        console.log('Cannot access iframe history due to cross-origin restrictions');
-        appendStatus('Cannot navigate back - cross-origin restrictions');
+      if (currentHistoryIndex > 0) {
+        currentHistoryIndex--;
+        const url = navigationHistory[currentHistoryIndex];
+        navigateToUrl(url);
+      } else {
+        appendStatus('No previous page in history');
       }
     });
     
     forwardBtn.addEventListener('click', () => {
-      try {
-        if (previewFrame.contentWindow) {
-          previewFrame.contentWindow.history.forward();
-        }
-      } catch (e) {
-        // Cross-origin restrictions - try alternative approach
-        console.log('Cannot access iframe history due to cross-origin restrictions');
-        appendStatus('Cannot navigate forward - cross-origin restrictions');
+      if (currentHistoryIndex < navigationHistory.length - 1) {
+        currentHistoryIndex++;
+        const url = navigationHistory[currentHistoryIndex];
+        navigateToUrl(url);
+      } else {
+        appendStatus('No next page in history');
       }
     });
     
@@ -496,6 +562,25 @@
         if (!isProcessing) {
           sendBtn.click();
         }
+      }
+    });
+    
+    // Keyboard shortcuts for navigation
+    document.addEventListener('keydown', e => {
+      // Alt + Left Arrow = Back
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        backBtn.click();
+      }
+      // Alt + Right Arrow = Forward
+      if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        forwardBtn.click();
+      }
+      // F5 or Ctrl+R = Reload
+      if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+        e.preventDefault();
+        reloadBtn.click();
       }
     });
   </script>
