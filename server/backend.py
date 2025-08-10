@@ -179,6 +179,100 @@ try:
 except Exception:
     pass  # Silently fail fallback creation
 
+def _resolve_target_dir(path_str: str, *, relative_to_current: bool = False) -> pathlib.Path:
+    """
+    Resolve the target directory from a user-supplied string.
+    - Absolute stays absolute.
+    - ~ expands to home.
+    - Relative is interpreted relative to DEFAULT_PROJECTS by default,
+      or relative to the CURRENT WORK_DIR if relative_to_current=True.
+    """
+    base = WORK_DIR if relative_to_current else DEFAULT_PROJECTS
+    p = pathlib.Path(os.path.expanduser(path_str))
+    if not p.is_absolute():
+        p = base / p
+    return p
+def _ensure_geminiignore_in(dir_path: pathlib.Path) -> bool:
+    """
+    Ensure .geminiignore exists in dir_path.
+    Returns True if we created/copied it, False if it already existed.
+    """
+    dest = dir_path / ".geminiignore"
+    if dest.exists():
+        return False
+
+    src = BASE_DIR / ".geminiignore"
+    try:
+        if src.exists():
+            try:
+                shutil.copy2(src, dest)
+            except (OSError, PermissionError):
+                shutil.copy(src, dest)
+        else:
+            # Small, safe fallback so we never fail the op
+            dest.write_text(
+                "# Fallback .geminiignore\n"
+                ".DS_Store\nThumbs.db\n.git/\nnode_modules/\n__pycache__/\n*.log\n.env\n.env.*\n!.env.example\n"
+            )
+        return True
+    except Exception as e:
+        print(f"Warning: Could not provision .geminiignore in {dir_path}: {e}", file=sys.stderr)
+        return False
+
+
+def _repoint_conversation_store(new_work_dir: pathlib.Path):
+    """
+    Update globals that depend on WORK_DIR and reload conversations for the new location.
+    """
+    global CONVERSATIONS_FILE, conversations
+    CONVERSATIONS_FILE = new_work_dir / '.gemmit' / 'conversations.json'
+    conversations = load_conversations()
+
+
+def change_work_dir_sync(path_str: str, *, relative_to_current: bool = False, also_update_output_dir: bool = False):
+    """
+    Synchronous helper to switch WORK_DIR.
+    - Creates the directory (and .gemmit) if missing.
+    - Auto-provisions .geminiignore if absent.
+    - Repoints conversations store.
+    Returns dict with details for the UI.
+    """
+    global WORK_DIR, OUTPUT_DIR
+
+    target = _resolve_target_dir(path_str, relative_to_current=relative_to_current)
+    created = False
+    if not target.exists():
+        target.mkdir(parents=True, exist_ok=True)
+        created = True
+
+    # Ensure per-project config dir exists
+    (target / ".gemmit").mkdir(parents=True, exist_ok=True)
+
+    # If the target doesn't have a .geminiignore, copy it in
+    copied_ignore = _ensure_geminiignore_in(target)
+
+    # Switch the active work dir
+    WORK_DIR = target
+
+    # Optionally keep OUTPUT_DIR in lockstep
+    if also_update_output_dir:
+        OUTPUT_DIR = target
+
+    # Provision guidance docs (uses WORK_DIR), ignore errors
+    try:
+        provision_guidance_docs()
+    except Exception as e:
+        print(f"Warning: provision_guidance_docs() after dir change: {e}", file=sys.stderr)
+
+    # Repoint conversation store for the new directory
+    _repoint_conversation_store(WORK_DIR)
+
+    return {
+        "workDir": str(WORK_DIR),
+        "created": created,
+        "copiedGeminiignore": copied_ignore,
+    }
+
 
 GEMINI_BIN = os.getenv('GEMINI_PATH', 'gemini')
 PORT = int(os.getenv('PORT', 8000))
@@ -565,6 +659,42 @@ async def ws_handler(ws, path=None):
                 'port': port,
                 'message': f"Frontend server {'started' if success else 'failed to start'} on port {port}"
             }))
+            continue
+        if command == 'change-workdir':
+            # Accept: path (str), relativeToCurrent (bool), alsoUpdateOutputDir (bool)
+            path_str = data.get('path') or data.get('dir') or data.get('workDir')
+            relative_to_current = bool(data.get('relativeToCurrent', False))
+            also_update_output_dir = bool(data.get('alsoUpdateOutputDir', False))
+
+            if not path_str:
+                await ws.send(json.dumps({
+                    'type': 'workdir_result',
+                    'success': False,
+                    'error': 'Missing "path"'
+                }))
+                continue
+
+            # Optional: let the user know if processes are running
+            has_active = bool(active_tasks or active_processes)
+
+            try:
+                info = change_work_dir_sync(
+                    path_str,
+                    relative_to_current=relative_to_current,
+                    also_update_output_dir=also_update_output_dir
+                )
+                await ws.send(json.dumps({
+                    'type': 'workdir_result',
+                    'success': True,
+                    'hasActiveTasks': has_active,
+                    **info
+                }))
+            except Exception as e:
+                await ws.send(json.dumps({
+                    'type': 'workdir_result',
+                    'success': False,
+                    'error': str(e)
+                }))
             continue
         
         if command == 'stop-frontend':
