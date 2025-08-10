@@ -1,79 +1,565 @@
-.gemini
-# ───────────────────────────────────────────────────────────────
-#  Core project               (ROOT/)
-# ───────────────────────────────────────────────────────────────
-# macOS / Windows cruft
+###############################################################################
+# GLOBAL / OS JUNK
+###############################################################################
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+.Spotlight-V100/
+.Trashes/
+# Windows
 Thumbs.db
 ehthumbs.db
-Icon?
-# JetBrains / VS Code
-.idea/
-.vscode/
-# Editor swap / lock files
-*.[sS][wW][pP]
-*.sw?
+Desktop.ini
+$RECYCLE.BIN/
+# Linux
+.fuse_hidden*
+.nfs*
+.lost+found/
 
-# Logs
+###############################################################################
+# VCS / PACKAGE MANAGERS (never feed LMs your VCS internals)
+###############################################################################
+.git/
+.hg/
+.svn/
+.CVS/
+# LFS pointers are fine but not large objects; if you mirror LFS locally, ignore it:
+.lfs/
+
+###############################################################################
+# EDITORS / IDEs
+###############################################################################
+# JetBrains
+.idea/
+*.iml
+# VS Code (keep this broad; un-ignore specific files if needed)
+.vscode/
+# Sublime / Others
+*.sublime-project
+*.sublime-workspace
+.vs/
+# Eclipse / NetBeans
+.project
+.classpath
+.settings/
+.nb-gradle/
+nbproject/private/
+# Emacs / Vim / Misc
+*~
+\#*\#
+.#*
+*.swp
+*.swo
+.history/
+.undo-tree/
+
+###############################################################################
+# SECRETS / CREDENTIALS (highest risk — keep out by default)
+###############################################################################
+.env
+.env.*          # .env.local, .env.production, etc.
+!.env.example    # allow sample templates
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+.ssh/
+.netrc
+.pypirc
+.npmrc
+.aws/
+.gcloud/
+.azure/
+.kube/config
+*service-account*.json
+*credentials*.json
+*secrets*.json
+*token*.json
+vault/*.hcl
+terraform.tfvars
+*.tfvars
+Pulumi.*.yaml
+.pulumi/
+
+###############################################################################
+# LOGS / TEMP / LOCKFILES (big/noisy — un-ignore if you want exact versions)
+###############################################################################
+logs/
 *.log
+*.log.*
 npm-debug.log*
 yarn-debug.log*
+yarn-error.log*
 pnpm-debug.log*
-scripts/node_modules/
-# dotenv / secrets
-.env
-.env.*          # .env.prod, .env.local, etc.
-desktop/resources/bin/*/node
-desktop/resources/bin/*/node.exe
-desktop/resources/bin/*/npm/**
-# ───────────────────────────────────────────────────────────────
-#  Python backend             (server/)
-# ───────────────────────────────────────────────────────────────
+lerna-debug.log*
+*.pid
+*.seed
+*.tmp
+*.temp
+*.lock
+# Dependency locks (keep model lean; un-ignore if versions matter)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+Pipfile.lock
+poetry.lock
+poetry.toml
+Gemfile.lock
+Cargo.lock
+composer.lock
+go.sum
+go.work.sum
+
+###############################################################################
+# NODE / FRONTEND (React, Next, Vite, Vue, Angular, Svelte, Gatsby, Nuxt, etc.)
+###############################################################################
+node_modules/
+bower_components/
+jspm_packages/
+.pnpm-store/
+.pnp.*
+.yarn/*
+!.yarn/patches/
+!.yarn/plugins/
+!.yarn/sdks/
+!.yarn/versions/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+.cache/
+.parcel-cache/
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Next.js / Remix / Gatsby / SvelteKit / Nuxt / Astro / Storybook
+.next/
+.remix/
+public/build/
+.svelte-kit/
+.nuxt/
+.out/
+.storybook-static/
+storybook-static/
+.next/cache/
+.vercel/
+.netlify/
+functions/.netlify/
+cache/
+public/compiled/
+astro/dist/
+
+# Static site generators
+_site/
+.sass-cache/
+.jekyll-cache/
+_hugo*
+Hugo_cache/
+public/
+
+###############################################################################
+# PYTHON
+###############################################################################
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-*.egg-info/
-# virtual envs
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+htmlcov/
+.tox/
 .venv/
 venv/
-# PyInstaller output
-server/build/
-server/dist/
-*.spec
+env/
+ENV/
+.ipynb_checkpoints/
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
 
-# ───────────────────────────────────────────────────────────────
-#  Front-end static app       (app/)
-# ───────────────────────────────────────────────────────────────
-# Node modules & Vite/React build output
-app/node_modules/
-app/dist/
+###############################################################################
+# JAVA / KOTLIN / JVM (Maven/Gradle, Android shared)
+###############################################################################
+# Build systems
+.gradle/
+.gradle-cache/
+.gradle-kotlin-dsl/
+.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/maven-wrapper.properties
+target/
+build/
+out/
+# Artifacts
+*.class
+*.jar
+*.war
+*.ear
+*.aar
+*.javadoc
+# Test/coverage
+*.ec
+jacoco.exec
+test-output/
+# Android-specific bits shared with JVM stack
+local.properties
+.cxx/
+captures/
 
-# ───────────────────────────────────────────────────────────────
-#  Electron desktop app       (desktop/)
-# ───────────────────────────────────────────────────────────────
-desktop/node_modules/
-# Webpack output (development)
-desktop/dist*/
-# electron-builder & electron-forge output
-desktop/out/
-desktop/release-builds/
-# Final installers / auto-update artefacts
-desktop/*.dmg
-desktop/*.exe
-desktop/*.AppImage
-desktop/*.deb
-desktop/*.rpm
-desktop/*.snap
-desktop/*.msi
-desktop/*.zip
-# Compiled backend + gemini binaries copied into resources
-desktop/resources/bin/**
+###############################################################################
+# ANDROID (Gradle, NDK, APK/AAB)
+###############################################################################
+*.apk
+*.aab
+*.ap_*
+app/build/
+*/build/
+*/release/
+*/debug/
+.keystore
+*.keystore
+*.jks
 
-# ───────────────────────────────────────────────────────────────
-#  Misc build scripts         (scripts/)
-# ───────────────────────────────────────────────────────────────
-# Any temp / cache the helper scripts create
-scripts/*.tmp
-scripts/*.cache
+###############################################################################
+# APPLE / iOS / macOS (Xcode, Swift, CocoaPods, Carthage, SPM)
+###############################################################################
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserdatad/
+# Build / Artifacts
+*.ipa
+*.dSYM/
+# Dependency managers
+Pods/
+Carthage/Build/
+Carthage/Checkouts/
+.swiftpm/
+.build/
+
+###############################################################################
+# GO
+###############################################################################
+bin/
+*.test
+*.out
+coverage.out
+vendor/
+# go.work can be project-specific; keep ignored to reduce noise:
+go.work
+
+###############################################################################
+# RUST
+###############################################################################
+target/
+**/*.rlib
+**/*.rmeta
+
+###############################################################################
+# C / C++ / CMake / Make / Obj-C
+###############################################################################
+# Common outputs
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.elf
+*.map
+*.d
+*.gch
+*.pch
+*.pdb
+*.ilk
+*.exp
+# Build trees
+build/
+_build/
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+compile_commands.json
+Makefile
+!CMakeLists.txt           # keep the root build script visible
+
+###############################################################################
+# DOTNET / C#
+###############################################################################
+bin/
+obj/
+*.user
+*.suo
+*.svclog
+*.nupkg
+*.snupkg
+TestResult*/
+.nuget/
+
+###############################################################################
+# PHP / COMPOSER / LARAVEL / SYMFONY / WORDPRESS / MAGENTO
+###############################################################################
+vendor/
+composer.phar
+# Laravel
+storage/
+bootstrap/cache/
+# Symfony
+var/
+# WordPress (keep code; ignore huge user content)
+wp-content/uploads/
+# Magento
+pub/media/
+app/etc/env.php
+
+###############################################################################
+# RUBY / BUNDLER / RAILS
+###############################################################################
+.bundle/
+vendor/bundle/
+log/
+tmp/
+coverage/
+pkg/
+
+###############################################################################
+# DART / FLUTTER
+###############################################################################
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+.melos_tool/
+build/
+# iOS Pods (duplicated above, but safe)
+ios/Pods/
+
+###############################################################################
+# SWIFT (SPM already above) / PACKAGE ARTIFACTS
+###############################################################################
+.swiftpm/
+.build/
+
+###############################################################################
+# DATA SCIENCE / ML / JUPYTER / HF / TENSORBOARD
+###############################################################################
+# Notebooks’ checkpoints already ignored; now datasets & model weights
+data/
+datasets/
+!data/README*
+!datasets/README*
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.arff
+*.h5
+*.hdf5
+*.mat
+*.npz
+*.npy
+*.pkl
+*.joblib
+# Model weights / checkpoints
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.tflite
+*.pb
+*.safetensors
+models/
+checkpoints/
+wandb/
+mlruns/
+lightning_logs/
+tensorboard/
+runs/
+# HuggingFace caches/tokens
+.cache/huggingface/
+~/.cache/huggingface/
+~/.cache/torch/
+
+###############################################################################
+# DATABASES / LOCAL STATE
+###############################################################################
+*.sqlite
+*.sqlite3
+*.db
+*.db3
+*.mdb
+*.accdb
+*.rdb
+*.redis
+*.realm
+*.sage
+*.dgraph
+*.duckdb
+*.bak
+*.backup
+
+###############################################################################
+# GAME ENGINES
+###############################################################################
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Mm]emoryCaptures/
+UserSettings/
+# Unreal
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+*.sln
+
+###############################################################################
+# CONTAINERS / INFRA / IaC
+###############################################################################
+# Docker
+.docker/
+docker-compose.override.yml
+# Kubernetes
+.kube/
+# Terraform (state & cache — contains secrets)
+.terraform/
+terraform.tfstate*
+crash.log
+# Ansible
+*.retry
+# Helm
+charts/**/charts/
+charts/**/tmp/
+# Vagrant
+.vagrant/
+
+###############################################################################
+# TEST ARTIFACTS / COVERAGE (beyond stacks above)
+###############################################################################
+coverage/
+coverage-final.json
+lcov.info
+.junit/
+test-results/
+reports/
+
+###############################################################################
+# BUNDLES / ARCHIVES / BINARY ASSETS (huge & opaque to LMs)
+###############################################################################
+*.zip
+*.tar
+*.tgz
+*.tar.gz
+*.rar
+*.7z
+*.iso
+*.dmg
+*.apk
+*.aab
+*.ipa
+# Large binary media/fonts — let the code describe them
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.ico
+*.psd
+*.ai
+*.sketch
+*.pdf
+*.heic
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.wmv
+*.flv
+*.webm
+*.ttf
+*.otf
+*.woff
+*.woff2
+
+###############################################################################
+# FRAMEWORK-SPECIFIC CACHES / MISC
+###############################################################################
+# Ruby / Jekyll duplicate caches already covered; here are extras:
+.sass-cache/
+# TypeScript incremental
+*.tsbuildinfo
+# Cypress / Playwright
+cypress/videos/
+cypress/screenshots/
+playwright-report/
+test-results/
+# Storybook
+.storybook-out/
+# Electron
+electron-builder.yml
+dist_electron/
+*.asar
+# Expo
+.expo/
+.expo-shared/
+# React Native
+android/app/build/
+ios/build/
+# Monorepos (Nx/Lerna/Turbo)
+.tmp/
+.nx/
+.turbo/
+turbo/
+lerna-debug.log*
+
+###############################################################################
+# OVERRIDES: keep small, human-readable templates visible
+###############################################################################
+!.env.example
+!**/README*
+!**/readme*
+!**/Readme*
+!.gitignore
+!.gitattributes
+!.editorconfig
+!.prettier*
+!.eslint*
+!.stylelintrc*
+!.browserslist*
+!.dockerignore
+!.npmrc.example
+!.nvmrc
+!.tool-versions
 
