@@ -83,6 +83,21 @@
     .btn-nav:not(:disabled):hover {
       background-color: var(--surface-300);
     }
+    .input-sm {
+      font-size:.8rem;
+      padding:.25rem .5rem;
+      border:1px solid var(--surface-border);
+      background:var(--surface-300);
+      color:var(--text);
+      border-radius:var(--radius);
+      min-width:16rem;
+    }
+
+    .chk {
+      display:flex; align-items:center; gap:.35rem;
+      font-size:.75rem; color:var(--text-muted);
+    }
+
     .loading-indicator { display:none; align-items:center; gap:.5rem; color:var(--text-muted); font-size:.8rem; }
     .loading-indicator.active { display:flex; }
     .spinner { width:12px; height:12px; border:2px solid var(--surface-border); border-top:2px solid var(--brand-purple); border-radius:50%; animation:spin 1s linear infinite; }
@@ -102,7 +117,15 @@
     <div class="topbar-right">
       <button class="btn-sm btn-primary" id="start-frontend">Start Frontend</button>
       <button class="btn-sm btn-cancel" id="stop-frontend">Stop Server</button>
+    
+      <!-- NEW: Workdir switcher -->
+      <input class="input-sm" id="workdir-path" list="workdir-suggestions" placeholder="coolsite or ~/Gemmit_Projects/coolsite" />
+      <datalist id="workdir-suggestions"></datalist>
+      <label class="chk"><input type="checkbox" id="rel-to-current"> Rel. to current</label>
+      <label class="chk"><input type="checkbox" id="sync-output" checked> Sync OUTPUT_DIR</label>
+      <button class="btn-sm" id="btn-change-workdir">Change Dir</button>
     </div>
+    
   </header>
 
   <div class="workspace">
@@ -163,6 +186,26 @@
     socket.onmessage = e => {
       const msg = JSON.parse(e.data);
       if (msg.type === 'stream') appendBot(msg.data);
+      if (msg.type === 'workdir_result') {
+        if (msg.success) {
+          appendStatus(`📁 Working directory set to: ${msg.workDir}`);
+          if (msg.created) appendStatus('Created directory.');
+          if (msg.copiedGeminiignore) appendStatus('Provisioned .geminiignore in target.');
+
+          // Persist & show in recents
+          rememberRecentDir(msg.workDir);
+
+          // If user asked to sync OUTPUT_DIR on the backend, mirror in UI field
+          if (syncOutputChk.checked) {
+            outputDirInput.value = msg.workDir;
+          }
+
+          // Optional: subtle UX—if a frontend server is running, give a nudge to reload
+          // appendStatus('Tip: If your preview points to files in this folder, hit Reload.');
+        } else {
+          appendStatus(`❌ Failed to change directory: ${msg.error || 'Unknown error'}`);
+        }
+      }
       if (msg.type === 'result') {
         console.log('Result:', msg);
         setProcessingState(false);
@@ -238,6 +281,14 @@
     // Navigation history tracking
     let navigationHistory = [];
     let currentHistoryIndex = -1;
+
+    // Workdir switcher elements
+    const workdirInput = document.getElementById('workdir-path');
+    const changeWorkdirBtn = document.getElementById('btn-change-workdir');
+    const relToCurrentChk = document.getElementById('rel-to-current');
+    const syncOutputChk = document.getElementById('sync-output');
+    const workdirSuggestions = document.getElementById('workdir-suggestions');
+
 
     // --- NEW: Preload prompt from URL query parameter ---
     const urlParams = new URLSearchParams(window.location.search);
@@ -495,6 +546,11 @@
         command: 'list-conversations'
       }));
     };
+    const recents = loadRecentDirs();
+  refreshDirDatalist(recents);
+  if (!workdirInput.value) {
+    workdirInput.value = (cfg.generationsDir && String(cfg.generationsDir).trim()) || recents[0] || '';
+  }
 
     // Append functions
     function appendUser(text) {
@@ -625,6 +681,46 @@
         }
       }
     });
+    // --- Workdir: send command ---
+function sendChangeWorkdir(path) {
+  if (!path) {
+    appendStatus('Please enter a path (e.g., "coolsite" or "~/Gemmit_Projects/coolsite").');
+    workdirInput.focus();
+    return;
+  }
+  socket.send(JSON.stringify({
+    command: 'change-workdir',
+    path,
+    relativeToCurrent: !!relToCurrentChk.checked,
+    alsoUpdateOutputDir: !!syncOutputChk.checked
+  }));
+  appendStatus(`Requesting directory change to: ${path} ${relToCurrentChk.checked ? '(relative to current)' : '(relative to Gemmit_Projects or absolute)'}`);
+}
+
+// --- Recents (localStorage) ---
+const RECENTS_KEY = 'gemmitRecentDirs';
+
+function loadRecentDirs() {
+  try { return JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function rememberRecentDir(dir) {
+  const list = loadRecentDirs();
+  const filtered = [dir, ...list.filter(d => d !== dir)].slice(0, 10);
+  localStorage.setItem(RECENTS_KEY, JSON.stringify(filtered));
+  refreshDirDatalist(filtered);
+}
+
+function refreshDirDatalist(list = loadRecentDirs()) {
+  workdirSuggestions.innerHTML = '';
+  list.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d;
+    workdirSuggestions.appendChild(opt);
+  });
+}
+
     
     // Keyboard shortcuts for navigation
     document.addEventListener('keydown', e => {
@@ -644,6 +740,19 @@
         reloadBtn.click();
       }
     });
+    // Change Dir: click
+changeWorkdirBtn.addEventListener('click', () => {
+  sendChangeWorkdir(workdirInput.value.trim());
+});
+
+// Change Dir: Enter in input
+workdirInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendChangeWorkdir(workdirInput.value.trim());
+  }
+});
+
   </script>
 </body>
 </html>
