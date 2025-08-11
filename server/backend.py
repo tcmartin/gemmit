@@ -561,18 +561,20 @@ async def run_gemini(prompt: str, work_dir: pathlib.Path, ws, conversation_id: s
     # Use chat endpoint, drop code-assist '-a'
     cmd = [GEMINI_BIN, '-y', '-a', '-p', prompt, '-m', 'gemini-2.5-flash']
     
-    # Debug: Log the environment for MCP server debugging
-    print(f"Running gemini-cli with PATH: {os.environ.get('PATH', 'NOT SET')}")
-    print(f"Working directory: {work_dir}")
-    print(f"Command: {' '.join(cmd)}")
-    
     # Create process in new process group for proper signal handling
+    # Ensure MCP servers can access the full environment including embedded node runtime
+    gemini_env = os.environ.copy()
+    
+    # Ensure critical environment variables are set for MCP server access
+    if 'HOME' not in gemini_env:
+        gemini_env['HOME'] = str(pathlib.Path.home())
+    
     proc = await asyncio.create_subprocess_exec(
         *cmd, cwd=str(work_dir),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        env=os.environ,
-        **_proc_group_kwargs(),   # <— NEW
+        env=gemini_env,
+        **_proc_group_kwargs(),
     )
     
     # Track the process for cancellation
