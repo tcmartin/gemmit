@@ -4,10 +4,13 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
-    osxSign: {
-      entitlements: 'build/entitlements.mac.plist',
-      'entitlements-inherit': 'build/entitlements.mac.plist',
-    },
+    // Only sign if we have proper certificates
+    ...(process.env.CSC_IDENTITY_AUTO !== "false" && {
+      osxSign: {
+        entitlements: 'build/entitlements.mac.plist',
+        'entitlements-inherit': 'build/entitlements.mac.plist',
+      },
+    }),
   },
   rebuildConfig: {},
   makers: [

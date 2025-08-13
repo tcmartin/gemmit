@@ -29,20 +29,29 @@ function binDir() {
 async function loadShellEnvironment() {
   if (process.platform === 'darwin') {
     try {
+      // Store our embedded node path before loading shell environment
+      const originalPath = process.env.PATH;
+      let embeddedNodePath = '';
+
+      if (app.isPackaged) {
+        const nodeDirPath = path.join(process.resourcesPath, 'bin', binDir());
+        embeddedNodePath = nodeDirPath;
+      }
+
       // Get the shell environment that includes proper PATH
       const { spawn } = require('child_process');
       const shell = process.env.SHELL || '/bin/bash';
-      
+
       return new Promise((resolve) => {
-        const proc = spawn(shell, ['-l', '-c', 'env'], { 
-          stdio: ['ignore', 'pipe', 'ignore'] 
+        const proc = spawn(shell, ['-l', '-c', 'env'], {
+          stdio: ['ignore', 'pipe', 'ignore']
         });
-        
+
         let output = '';
         proc.stdout.on('data', (data) => {
           output += data.toString();
         });
-        
+
         proc.on('close', () => {
           const env = {};
           output.split('\n').forEach(line => {
@@ -51,15 +60,20 @@ async function loadShellEnvironment() {
               env[match[1]] = match[2];
             }
           });
-          
-          // Merge shell environment, prioritizing shell PATH
+
+          // Merge shell environment, but preserve embedded node path
           if (env.PATH) {
-            process.env.PATH = env.PATH;
+            if (embeddedNodePath) {
+              // Combine shell PATH with our embedded node path
+              process.env.PATH = `${env.PATH}${path.delimiter}${embeddedNodePath}`;
+            } else {
+              process.env.PATH = env.PATH;
+            }
           }
-          
+
           resolve();
         });
-        
+
         // Fallback if it takes too long
         setTimeout(resolve, 2000);
       });
@@ -71,12 +85,12 @@ async function loadShellEnvironment() {
 
 // ─── make sure our embedded node lives on PATH so "#!/usr/bin/env node" works ────────
 if (app.isPackaged) {
-    // path to your bundled node binary
-    const nodeDirPath = path.join(process.resourcesPath, 'bin', binDir());
-    // append it so system tools are found first, but node is still available
-    process.env.PATH = `${process.env.PATH}${path.delimiter}${nodeDirPath}`;
-  }
-  
+  // path to your bundled node binary
+  const nodeDirPath = path.join(process.resourcesPath, 'bin', binDir());
+  // append it so system tools are found first, but node is still available
+  process.env.PATH = `${process.env.PATH}${path.delimiter}${nodeDirPath}`;
+}
+
 
 function waitPort(port, host = '127.0.0.1') {
   return new Promise(resolve => {
@@ -107,7 +121,7 @@ async function handleGeminiAuthentication(geminiPath) {
         // For file paths, just run gemini without auth subcommand
         authCommand = `${geminiPath}`;
       }
-      
+
       if (process.platform === 'win32') {
         // Windows: Open Command Prompt with gemini auth
         const { spawn } = require('child_process');
@@ -128,7 +142,7 @@ async function handleGeminiAuthentication(geminiPath) {
         const { spawn } = require('child_process');
         const terminals = ['gnome-terminal', 'xterm', 'konsole', 'x-terminal-emulator'];
         let launched = false;
-        
+
         for (const term of terminals) {
           try {
             if (term === 'gnome-terminal') {
@@ -149,15 +163,15 @@ async function handleGeminiAuthentication(geminiPath) {
             continue;
           }
         }
-        
+
         if (!launched) {
           console.warn('Could not find a suitable terminal emulator for authentication');
         }
       }
-      
+
       // Give some time for the terminal to launch
       setTimeout(resolve, 1000);
-      
+
     } catch (error) {
       console.error('Failed to launch authentication terminal:', error);
       reject(error);
@@ -186,13 +200,13 @@ async function ensureGemini() {
 
   if (fs.existsSync(geminiPath)) {
     updateSplashStatus('Gemini CLI found - checking authentication...');
-    
+
     // Check authentication even if CLI is already installed
     if (!isGeminiAuthenticated()) {
       updateSplashStatus('Authentication required - opening auth window...');
       await handleGeminiAuthentication(geminiPath);
     }
-    
+
     updateSplashStatus('AI backend ready!');
     return geminiPath;
   }
@@ -201,7 +215,7 @@ async function ensureGemini() {
 
   // In development, use system node/npm; in production, use embedded runtime
   let nodeBin, npmCli, nodeDir, env;
-  
+
   if (app.isPackaged) {
     // Production: use embedded node/npm
     nodeBin = path.join(
@@ -221,10 +235,10 @@ async function ensureGemini() {
   }
 
   // Ensure we have a proper PATH that includes system tools for MCP servers
-  const systemPath = process.env.PATH || (process.platform === 'win32' 
-    ? 'C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem' 
+  const systemPath = process.env.PATH || (process.platform === 'win32'
+    ? 'C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem'
     : '/usr/local/bin:/usr/bin:/bin');
-  
+
   if (app.isPackaged && nodeDir) {
     env = {
       ...process.env,
@@ -293,7 +307,7 @@ process.resourcesPath: ${process.resourcesPath}
       stdio: ['ignore', 'pipe', 'pipe']
     });
   }
-  
+
   if (r.status !== 0) {
     console.error('npm install failed with status:', r.status);
     console.error('stdout:', r.stdout?.toString());
@@ -330,7 +344,7 @@ process.resourcesPath: ${process.resourcesPath}
 async function startBackend() {
   // Load proper shell environment first (important on macOS)
   await loadShellEnvironment();
-  
+
   let geminiPath;
 
   if (app.isPackaged) {
@@ -360,16 +374,16 @@ async function startBackend() {
   } else {
     console.log('⚙️  Dev mode: using local Python backend + npx gemini-cli');
     updateSplashStatus('Checking authentication...');
-    
+
     // Use npx to run gemini CLI (no installation needed)
     geminiPath = 'npx @google/gemini-cli';
-    
+
     // Check if authenticated and handle if not
     if (!isGeminiAuthenticated()) {
       updateSplashStatus('Authentication required - opening auth window...');
       await handleGeminiAuthentication(geminiPath);
     }
-    
+
     updateSplashStatus('Starting development server...');
     process.env.GEMINI_PATH = geminiPath;
 
@@ -383,10 +397,10 @@ async function startBackend() {
 
     // In dev, server folder is one level up from desktop
     const script = path.join(process.cwd(), '..', 'server', 'backend.py');
-    const pythonPath = process.env.PYTHON || (process.platform === 'win32' ? 
-      path.join(process.cwd(), '..', 'server', '.venv', 'Scripts', 'python.exe') : 
+    const pythonPath = process.env.PYTHON || (process.platform === 'win32' ?
+      path.join(process.cwd(), '..', 'server', '.venv', 'Scripts', 'python.exe') :
       'python3');
-    
+
     backendProc = spawn(pythonPath, [script], {
       stdio: ['ignore', 'inherit', 'inherit'],
       env: devBackendEnv
@@ -608,7 +622,7 @@ function cleanupBackend() {
     try {
       // Try SIGTERM first
       kill(backendProc.pid, 'SIGTERM');
-      
+
       // Wait a bit, then force kill if still running
       setTimeout(() => {
         try {
@@ -634,9 +648,9 @@ app.on('before-quit', (event) => {
     console.log('App is quitting, cleaning up processes...');
     isQuitting = true;
     event.preventDefault(); // Prevent immediate quit
-    
+
     cleanupBackend();
-    
+
     // Give cleanup time to complete, then quit for real
     setTimeout(() => {
       app.exit(0);
