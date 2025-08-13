@@ -25,6 +25,50 @@ function binDir() {
   if (process.platform === 'darwin') return process.arch === 'arm64' ? 'mac-arm64' : 'mac-x64';
   return 'linux';
 }
+// ─── Load proper shell environment on macOS ────────────────────────────
+async function loadShellEnvironment() {
+  if (process.platform === 'darwin') {
+    try {
+      // Get the shell environment that includes proper PATH
+      const { spawn } = require('child_process');
+      const shell = process.env.SHELL || '/bin/bash';
+      
+      return new Promise((resolve) => {
+        const proc = spawn(shell, ['-l', '-c', 'env'], { 
+          stdio: ['ignore', 'pipe', 'ignore'] 
+        });
+        
+        let output = '';
+        proc.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        
+        proc.on('close', () => {
+          const env = {};
+          output.split('\n').forEach(line => {
+            const match = line.match(/^([^=]+)=(.*)$/);
+            if (match) {
+              env[match[1]] = match[2];
+            }
+          });
+          
+          // Merge shell environment, prioritizing shell PATH
+          if (env.PATH) {
+            process.env.PATH = env.PATH;
+          }
+          
+          resolve();
+        });
+        
+        // Fallback if it takes too long
+        setTimeout(resolve, 2000);
+      });
+    } catch (e) {
+      console.warn('Could not load shell environment:', e);
+    }
+  }
+}
+
 // ─── make sure our embedded node lives on PATH so "#!/usr/bin/env node" works ────────
 if (app.isPackaged) {
     // path to your bundled node binary
@@ -284,6 +328,9 @@ process.resourcesPath: ${process.resourcesPath}
 }
 /* ─── start backend (Python) ───────────────────────────────────────── */
 async function startBackend() {
+  // Load proper shell environment first (important on macOS)
+  await loadShellEnvironment();
+  
   let geminiPath;
 
   if (app.isPackaged) {
@@ -297,11 +344,9 @@ async function startBackend() {
     updateSplashStatus('Starting backend server...');
 
     // Set up proper environment for Python backend with full system access for MCP servers
+    // Use the PATH we've already set up which includes embedded node appended to system PATH
     const backendEnv = {
       ...process.env,
-      PATH: process.env.PATH || (process.platform === 'win32' 
-        ? 'C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem' 
-        : '/usr/local/bin:/usr/bin:/bin'),
       HOME: process.env.HOME || os.homedir(),
       TMPDIR: process.env.TMPDIR || os.tmpdir(),
       // Ensure Python can find system libraries
@@ -331,9 +376,6 @@ async function startBackend() {
     // Set up proper environment for development backend with full system access for MCP servers
     const devBackendEnv = {
       ...process.env,
-      PATH: process.env.PATH || (process.platform === 'win32' 
-        ? 'C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\Wbem' 
-        : '/usr/local/bin:/usr/bin:/bin'),
       HOME: process.env.HOME || os.homedir(),
       TMPDIR: process.env.TMPDIR || os.tmpdir(),
       GEMINI_PATH: geminiPath,
