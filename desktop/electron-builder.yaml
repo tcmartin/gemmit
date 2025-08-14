@@ -8,6 +8,11 @@ extraResources:
   - from: resources/bin
     to: bin
 asar: true
+asarUnpack:
+  - "**/*.node"
+  - "**/*.dylib"
+  - "**/*.so"
+  - "resources/**"          # if you keep helpers here in your app dir
 publish:
   provider: github
   owner: tcmartin

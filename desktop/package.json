@@ -2,7 +2,7 @@
   "repository": "github.com/tcmartin/gemmit",
   "name": "gemmit",
   "productName": "Gemmit",
-  "version": "1.0.0",
+  "version": "1.0.7",
   "description": "AI-Powered Development Assistant with Gemini integration",
   "main": "src/main.js",
   "scripts": {
