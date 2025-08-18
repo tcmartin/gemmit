@@ -1,24 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <!-- JIT not needed -->
-  <key>com.apple.security.cs.allow-jit</key><false/>
-  <!-- Allow outbound network requests -->
-  <key>com.apple.security.network.client</key><true/>
-  <!-- Allow file system access for reading/writing project files -->
-  <key>com.apple.security.files.user-selected.read-write</key><true/>
-  <!-- Allow access to user's home directory for Gemmit_Projects -->
-  <key>com.apple.security.files.downloads.read-write</key><true/>
-  <!-- Allow access to user home directory (broader permission) -->
-  <key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
-  <array>
-    <string>/Users/</string>
-  </array>
-  <!-- Allow temporary file creation in home directory -->
-  <key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
-  <array>
-    <string>Gemmit_Projects/</string>
-    <string>.gemmit/</string>
-  </array>
+  <!-- Required for Electron/V8 under hardened runtime -->
+  <key>com.apple.security.cs.allow-jit</key><true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+  <key>com.apple.security.cs.disable-library-validation</key><true/>
+
+  <!-- Optional: only if you rely on DYLD_* vars for native modules -->
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key><true/>
 </dict></plist>

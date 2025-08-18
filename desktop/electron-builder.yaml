@@ -17,21 +17,18 @@ publish:
   provider: github
   owner: tcmartin
   repo: gemmit
-
+afterSign: scripts/after-sign-mac.js
 mac:
   target:
     - target: dmg
       arch: [arm64]  # Only build for Apple Silicon since we can't cross-compile the Python backend
-  hardenedRuntime: false
+  hardenedRuntime: true
   gatekeeperAssess: false
   icon: "assets/icons/icon.icns"
   category: public.app-category.developer-tools
-  # Disable code signing for now (unsigned builds)
-  identity: null
-  # Remove entitlements for unsigned builds to avoid conflicts
-  # entitlements: build/entitlements.mac.plist
-  # entitlementsInherit: build/entitlements.mac.plist
-  # Add extended attributes to help with Gatekeeper
+  entitlements: build/entitlements.mac.plist
+ 
+  entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     LSUIElement: false
     NSHighResolutionCapable: true
@@ -55,4 +52,11 @@ linux:
   icon: "assets/icons/icon.png"
   category: Development
   maintainer: "Trevor Martin <trevor@datastreamssolutions.com>"
+  mas:
+  hardenedRuntime: true
+  category: public.app-category.developer-tools
+  entitlements: build/entitlements.mas.plist
+  entitlementsInherit: build/entitlements.mas.inherit.plist
+  type: distribution
+
 
