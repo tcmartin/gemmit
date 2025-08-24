@@ -77,7 +77,7 @@ cd ../scripts
 ./build_backend.sh 
 #or if on windows .\build_backend.ps1
 
-cd desktop
+cd ../desktop
 npm run build:mac
 #or win, linux, etc
 
