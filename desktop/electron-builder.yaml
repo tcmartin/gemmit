@@ -1,46 +1,49 @@
-appId:   com.datastreams.gemmit
+appId: com.datastreams.gemmit
 productName: gemmit
+
 files:
-  - src/**                 # webpack output
-  - app/**        # backend + gemini
+  - src/**
+  - app/**
   - node_modules/**
+
 extraResources:
   - from: resources/bin
     to: bin
+
 asar: true
 asarUnpack:
   - "**/*.node"
   - "**/*.dylib"
   - "**/*.so"
-  - "resources/**"          # if you keep helpers here in your app dir
+  - "resources/**"
+
 publish:
   provider: github
   owner: tcmartin
   repo: gemmit
+beforePack: scripts/before-pack.js
 afterSign: scripts/after-sign-mac.js
+
 mac:
   target:
     - target: dmg
-      arch: [arm64]  # Only build for Apple Silicon since we can't cross-compile the Python backend
+      arch: [arm64]
   hardenedRuntime: true
   gatekeeperAssess: false
-  icon: "assets/icons/icon.icns"
+  icon: assets/icons/icon.icns
   category: public.app-category.developer-tools
   entitlements: build/entitlements.mac.plist
- 
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     LSUIElement: false
     NSHighResolutionCapable: true
-  # Additional settings for unsigned builds
-  type: distribution
+  type: distribution   # ok under mac
 
 win:
   target:
     - target: nsis
       arch: [x64, ia32]
-  icon: "assets/icons/icon.ico"
-  # Disable code signing for development builds
+  icon: assets/icons/icon.ico
   forceCodeSigning: false
 
 linux:
@@ -49,14 +52,9 @@ linux:
       arch: [x64]
     - target: deb
       arch: [x64]
-  icon: "assets/icons/icon.png"
+  icon: assets/icons/icon.png
   category: Development
   maintainer: "Trevor Martin <trevor@datastreamssolutions.com>"
-  mas:
-  hardenedRuntime: true
-  category: public.app-category.developer-tools
-  entitlements: build/entitlements.mas.plist
-  entitlementsInherit: build/entitlements.mas.inherit.plist
-  type: distribution
+
 
 

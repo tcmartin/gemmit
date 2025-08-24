@@ -74,7 +74,13 @@ pip install -r requirements.txt
 
 # Build the backend binary
 cd ../scripts
-./build_backend.sh
+./build_backend.sh 
+#or if on windows .\build_backend.ps1
+
+cd desktop
+npm run build:mac
+#or win, linux, etc
+
 ```
 
 ### Running in Development

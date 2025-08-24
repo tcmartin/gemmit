@@ -2,7 +2,7 @@
   "repository": "github.com/tcmartin/gemmit",
   "name": "gemmit",
   "productName": "Gemmit",
-  "version": "1.0.7",
+  "version": "1.0.9",
   "description": "AI-Powered Development Assistant with Gemini integration",
   "main": "src/main.js",
   "scripts": {
@@ -41,6 +41,7 @@
     "css-loader": "^6.11.0",
     "electron": "37.2.5",
     "electron-builder": "^26.0.12",
+    "electron-osx-sign": "^0.6.0",
     "node-loader": "^2.1.0",
     "npm-run-all": "^4.1.5",
     "style-loader": "^3.3.4"
